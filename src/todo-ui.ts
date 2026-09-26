@@ -9,7 +9,7 @@ import { appendTodo, completeTodo, readTodos } from './todo-data';
 const drafts = new WeakMap<QiaomuHomePlugin, Map<string, string>>();
 const L = (zh: string, en: string) => isChinese() ? zh : en;
 class TodoPicker extends SuggestModal<TFile> {
-  constructor(private plugin: QiaomuHomePlugin, private changed:()=>void = ()=>{}, private switchToFixed = true) { super(plugin.app); this.setPlaceholder(L('选择任务笔记', 'Choose task note')); }
+  constructor(private plugin: QiaomuHomePlugin, private changed:()=>void = ()=>{}, private switchToFixed = true) { super(plugin.app); this.modalEl.addClass("qh-ui"); this.setPlaceholder(L('选择任务笔记', 'Choose task note')); }
   getSuggestions(query: string): TFile[] { return this.app.vault.getMarkdownFiles().filter(f => f.path.toLocaleLowerCase().includes(query.toLocaleLowerCase())).slice(0, 50); }
   renderSuggestion(file: TFile, el: HTMLElement): void { el.setText(file.path); }
   onChooseSuggestion(file: TFile): void {
@@ -31,12 +31,12 @@ export function renderTodoPreferences(container: HTMLElement, plugin: QiaomuHome
   new Setting(fallback).setName(plugin.settings.todoPath).setDesc(L('未完成项保留在原笔记中；切换不会自动搬移。','Existing tasks stay in their source; switching does not move them.')).addButton(button=>button.setButtonText(L('选择','Choose')).onClick(()=>new TodoPicker(plugin,changed,false).open()));
 }
 class TodoOptions extends Modal {
-  constructor(private plugin: QiaomuHomePlugin) { super(plugin.app); }
+  constructor(private plugin: QiaomuHomePlugin) { super(plugin.app); this.modalEl.addClass("qh-ui"); }
   onOpen(): void {this.setTitle(L('待办设置','Todo settings'));this.contentEl.empty();renderTodoPreferences(this.contentEl,this.plugin,()=>this.onOpen());}
   onClose(): void {this.contentEl.empty();}
 }
 class CarryPicker extends Modal {
-  constructor(app: QiaomuHomePlugin['app'], private groups: CarryGroup[], private run: (groups:CarryGroup[])=>Promise<void>) {super(app);}
+  constructor(app: QiaomuHomePlugin['app'], private groups: CarryGroup[], private run: (groups:CarryGroup[])=>Promise<void>) {super(app); this.modalEl.addClass("qh-ui");}
   onOpen(): void {
     this.setTitle(L('选择结转的任务', 'Choose tasks to carry forward'));
     const selected = new Set<string>();

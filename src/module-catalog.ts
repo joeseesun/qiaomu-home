@@ -20,6 +20,10 @@ export interface HomeModule {
 
 export function builtinModules(): HomeModule[] {
   return [
+    { id: "daily-preview", title: isChinese() ? "今日日记" : "Today's note", source: "Obsidian", icon: "calendar-days", status: "ready", description: isChinese() ? "在首页查看今日记录，打开原笔记继续编辑。" : "See today's note and open it to edit." },
+    { id: "recently-modified", title: isChinese() ? "最近修改" : "Recently modified", source: "Obsidian", icon: "file-clock", status: "ready", description: isChinese() ? "接着处理最近写过的笔记。" : "Continue notes you recently edited." },
+    { id: "review-note", title: isChinese() ? "回顾一篇" : "Review a note", source: "Obsidian", icon: "shuffle", status: "ready", description: isChinese() ? "从选定文件夹随机找一篇旧笔记。" : "Rediscover a note from a chosen folder." },
+    { id:"beginner-plugins", title:isChinese()?"新手必装":"Starter plugins", source:"Home", icon:"compass", status:"ready", preview:["Calendar", "Advanced Tables", "Omnisearch"], description:isChinese()?"20 个常用插件，按用途了解，再按需安装。":"Discover 20 useful plugins and choose what fits." },
     { id: "todo", title: isChinese() ? "今日代办" : "Today’s tasks", source: "Home", icon: "list-todo", status: "ready", description: isChinese() ? "快速添加和勾选，保存在任务笔记中。" : "Add and complete tasks in a Markdown note." },
     { id: "recent", title: t("section.recent"), source: "Obsidian", icon: "history", status: "ready", description: t("library.recent") },
   ];

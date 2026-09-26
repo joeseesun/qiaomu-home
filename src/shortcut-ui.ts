@@ -16,7 +16,7 @@ function save(plugin: QiaomuHomePlugin): void { void plugin.saveSettings().catch
 
 class TargetPicker extends FuzzySuggestModal<TAbstractFile> {
   constructor(private plugin: QiaomuHomePlugin, private kind: ShortcutKind, private choose: (file: TAbstractFile) => void) {
-    super(plugin.app); this.setPlaceholder(L("搜索文件或文件夹", "Find a file or folder"));
+    super(plugin.app); this.modalEl.addClass("qh-ui"); this.setPlaceholder(L("搜索文件或文件夹", "Find a file or folder"));
   }
   getItems(): TAbstractFile[] { return this.plugin.app.vault.getAllLoadedFiles().filter((file) => this.kind === "folder" ? file instanceof TFolder : file instanceof TFile); }
   getItemText(file: TAbstractFile): string { return file.path || "/"; }
@@ -25,7 +25,7 @@ class TargetPicker extends FuzzySuggestModal<TAbstractFile> {
 
 export class ShortcutEditorModal extends Modal {
   constructor(private plugin: QiaomuHomePlugin, private pageId: string, private groupId?: string, private itemId?: string) {
-    super(plugin.app); plugin.register(() => this.close());
+    super(plugin.app); this.modalEl.addClass("qh-ui"); plugin.register(() => this.close());
   }
   onOpen(): void {
     this.modalEl.addClass("qh-shortcut-modal");
@@ -169,7 +169,7 @@ async function openShortcut(plugin: QiaomuHomePlugin, item: Shortcut, newTab: bo
 }
 
 export class MoveShortcutModal extends Modal {
-  constructor(private plugin: QiaomuHomePlugin, private pageId: string, private groupId: string, private itemId?: string) { super(plugin.app); }
+  constructor(private plugin: QiaomuHomePlugin, private pageId: string, private groupId: string, private itemId?: string) { super(plugin.app); this.modalEl.addClass("qh-ui"); }
   onOpen(): void {
     this.setTitle(this.itemId ? L("移到其他分组", "Move to group") : t("layout.move"));
     let count = 0;

@@ -1,128 +1,198 @@
-# 乔木Home / Qiaomu Home
+<div align="center">
 
-**中文** | [English](#english)
+# 乔木 Home
 
-> 打开 Obsidian 的第一眼：搜索、新建，接着做你刚才在做的事。
+### 每天打开 Obsidian，都有一个想回来的地方。
 
-> A calm start page for Obsidian: find a note, create something, and pick up where you left off.
+A calm start page for your notes, daily tasks, and everything you want to return to.
 
-[在 Obsidian 安装](https://community.obsidian.md/plugins/qiaomu-home) · [下载 0.3.0](https://github.com/joeseesun/qiaomu-home/releases/tag/0.3.0) · [报告问题](https://github.com/joeseesun/qiaomu-home/issues) · [许可证](LICENSE)
+**中文** · [English](#english)
 
-乔木Home 把 Obsidian 的启动页和空白新标签页换成一个安静的起点：大字时间、Unsplash 壁纸、一个能搜笔记也能问 AI 的搜索框、一排快捷新建按钮，以及「继续」卡片——最近的笔记、在读的书、未读的文章、刚才听的电台、上次的 AI 对话。
+[![Latest release](https://img.shields.io/github/v/release/joeseesun/qiaomu-home?style=flat-square&color=222222)](https://github.com/joeseesun/qiaomu-home/releases/latest)
+[![Obsidian](https://img.shields.io/badge/Obsidian-1.11.4%2B-444444?style=flat-square)](https://community.obsidian.md/plugins/qiaomu-home)
+[![License](https://img.shields.io/badge/license-GPL--3.0-666666?style=flat-square)](LICENSE)
 
-## 它做什么
+**[立即安装 →](https://community.obsidian.md/plugins/qiaomu-home)** · [下载最新版](https://github.com/joeseesun/qiaomu-home/releases/latest) · [反馈与建议](https://github.com/joeseesun/qiaomu-home/issues)
 
-| 区域 | 能做什么 |
+![乔木 Home：自定义欢迎语、今日代办、常用入口和独立页签](docs/images/home.png)
+
+**一个起点。记下一笔，完成一件事，接着读昨天的书。**
+
+</div>
+
+乔木 Home 将启动页和空白新标签页变成你的个人起点：今天要做的事、常用笔记和网址、还没读完的内容，都放在顺手的位置。配上一张喜欢的壁纸，打开就能开始。
+
+无需注册。基础功能独立可用。笔记和待办留在自己的 Obsidian 库里。
+
+## 三步，拥有自己的主页
+
+1. **[打开插件市场页面](https://community.obsidian.md/plugins/qiaomu-home)**，或在 Obsidian 的「设置 → 第三方插件 → 浏览」搜索 **Qiaomu Home**。
+2. 点击 **安装 → 启用**，打开一个新标签页。
+3. 点击页签右侧的 **齿轮 → 添加内容**，放上你最常用的模块。
+
+新安装预设 **主页、阅读、娱乐**。先用默认布局就好；想调整时，内容、顺序、名称和壁纸都可以改。已有用户升级会保留自己的布局。
+
+<details>
+<summary>手动安装 / 更新</summary>
+
+从 [最新 Release](https://github.com/joeseesun/qiaomu-home/releases/latest) 下载同一版本的 `main.js`、`manifest.json`、`styles.css`，放进库的 `.obsidian/plugins/qiaomu-home/`，然后在 Obsidian 设置中启用插件。
+
+更新时仅替换这三个文件，保留 `data.json` 和缓存，再重新加载插件。需要 Obsidian **1.11.4 或更高版本**。
+
+</details>
+
+## 把首页布置成你的习惯
+
+### 想放什么，自己选
+
+待办、最近笔记、快捷入口、继续阅读、未读文章……从模块库添加到当前页签。每个页签拥有独立布局；卡片默认显示 3 条，可以改为 1–6 条。
+
+![真实模块库：预览内容后添加到当前页签，缺少来源插件时提供市场入口](docs/images/module-library.png)
+
+- **主页**：安排今天，打开常用入口。
+- **阅读**：接着读书，浏览未读文章。
+- **娱乐**：打开电台，收藏喜欢的网站。
+- **你的页签**：写作、研究、项目……按自己的工作方式命名。
+
+齿轮进入布置模式，拖动卡片和页签调整顺序；也可以通过菜单前移、后移。阅读和娱乐页签可以改名或删除，主页始终保留。缺少配套插件时，模块库会给出安装入口。
+
+### 今天的事，写在今天的日记里
+
+在 **今日代办** 输入一件事，回车保存；做完直接勾选。
+
+- 默认写入今日日记，沿用核心日记的目录、日期格式和模板。
+- 以前没完成的任务，可以选择结转或全部移入今天；原日记保留指向目标日期的记录。
+- 可选自动结转，默认关闭；也可以指定一篇固定任务笔记。
+- 任务是普通 Markdown 复选框，离开 Home 也能继续编辑。目前无需 Tasks，也未接入 Tasks。
+
+点击搜索框旁的 **今日**，即可打开今天的日记；不存在时自动创建。
+
+### 常用入口，一下就到
+
+笔记、文件夹、网址和动态今日日记，都能成为快捷入口。默认提供 **今日日记、X、谷歌**，你可以编辑、排序或删除，也能建立多个分组。
+
+![快捷入口：平铺选择类型，再填写目标，按需自定义名称和图标](docs/images/shortcuts.png)
+
+先选类型，再填写目标；名称和图标需要时再展开。库内文件改名会更新目标，日记入口始终指向当天。网址使用简洁图标，可手动挑选，不自动抓取网站 Logo。
+
+### 一张壁纸，一句属于你的话
+
+**50 张 Unsplash 精选壁纸**，也能使用库内图片，或配置自己的 Unsplash Key 按关键词找图。支持每天更换、每次打开更换或手动更换，当前壁纸会缓存在本地。
+
+顶部可以显示 **时间与问候**，或换成 **自定义文本**。设置和弹窗采用克制的黑白灰控件，支持浅色与深色外观。
+
+[查看摄影作品与来源 →](docs/wallpaper-credits.md)
+
+### 刚开始用 Obsidian？少走一点弯路
+
+**新手必装** 模块精选 20 个常用社区插件，默认展示 3 个，可展开更多。每个都解释「能做什么、适合谁」，点击进入官方详情，再决定是否安装。
+
+从 Calendar、Advanced Tables、Omnisearch 开始，按自己的需要选一两个即可。[完整清单与选取依据 →](docs/starter-plugins.md)
+
+<sub>以上为桌面端真实界面截图，使用示例任务和笔记；壁纸、自定义文字和布局均可调整。</sub>
+
+## 一个搜索框，把动作变短
+
+| 想做的事 | 怎么做 |
 | --- | --- |
-| 搜索框 | 按名称、别名、路径搜笔记（最近打开的更靠前）；装了乔木插件时，同时搜书、文章、电台和对话。`↵` 打开，`⇧↵` 追加到 Inbox 或今日日记，`⌘↵` 直接问乔木 Agent。没有结果时一键新建同名笔记或转到全文搜索。 |
-| 新笔记与快捷按钮 | 新笔记、今日日记、白板、数据库、文件夹、导入文件，加上乔木插件提供的「添加图书」「添加订阅」「新对话」。可隐藏、排序，也能把任意 Obsidian 命令放上来。 |
-| 继续 | 最近笔记，以及每个乔木插件的继续卡片：书的封面和进度、未读文章数、正在播放的电台（可直接播放/暂停）、最近对话。 |
-| 页签与模块 | 可启用多个页签，每页独立设置最近笔记、今日代办、快捷入口和插件卡片。模块可隐藏、设为 1–6 条（默认 3 条）；页签支持命名、排序和删除。 |
-| 壁纸 | 内置 50 张 Unsplash 精选（无需密钥），或用自己的 Unsplash Access Key 按关键词随机，或用库中的图片。每天一张、每次打开换一张或手动更换；当前壁纸缓存在本地，离线也能秒开。 |
-| 推荐 | 没装的乔木插件显示一张推荐卡片，点「安装」打开插件市场页面；已安装未启用的可直接去启用。可逐个隐藏。 |
+| 找一篇笔记 | 输入名称、别名或路径，`Enter` 打开；可转到 Obsidian 全文搜索 |
+| 先记下一点想法 | 输入后按 `Shift + Enter`，追加到日记或 Inbox |
+| 开始写一篇新笔记 | 点击「新笔记」，或在搜索无结果时新建同名笔记 |
+| 创建白板、数据库或文件夹 | 打开「新笔记」旁的菜单 |
+| 问 AI | 安装乔木 Agent 后，搜索框 `⌘ / Ctrl + Enter` 提问 |
 
-## 0.2 更新
+还可以把常用的 Obsidian 命令放进新建菜单，隐藏不用的动作。
 
-新增快速记录、原生书签和可选页签模式。搜索结果不会再被卡片遮挡；插件延迟加载或重载后会自动恢复连接，不再误报需要更新。已有布局自动保留为第一个页签。
+## 阅读、收集、聆听，都能接着来
 
-### 0.3 开发中：直接布置主页
+Home 独立可用。装上相应的乔木插件后，主页还能显示它们的内容和快捷动作。
 
-当前开发分支新增模块库，尚未公开发布，市场安装仍为上方的正式版本。
-
-- 点击主页「添加内容」，搜索和预览模块，添加到当前页签；缺少插件时可打开安装或启用入口。
-- 新建页签后直接选内容；页签菜单支持重命名、复制、排序和删除。
-- 卡片 `⋯` 可设置显示条数（默认 3 条，可选 1–6 条）、移动到其他页签或移除。
-- 「编辑布局」支持拖动页签和卡片；菜单中的前移、后移也可完成排序。
-- 同一插件的多个模块可以分别配置，旧版插件级设置自动继承。
-- 「快捷方式」可创建多个分组，添加库内笔记、文件夹或 http/https 网址，选择图标和名称。入口可在编辑模式中排序或通过菜单前移、后移；文件夹会在文件列表中展开定位，库内改名会更新目标。
-- 添加快捷入口先平铺选择类型，再填写目标；名称和图标按需展开，切换类型保留草稿。
-- 工具栏使用图标按钮；编辑状态显示完成图标。拖动使用独立手柄、插入线和边缘滚动，也可用菜单排序。
-- 网址默认使用网页图标，可手动选择其他图标，不自动抓取网站 Logo。
-
-## 和乔木插件一起用
-
-| 插件 | 在主页上 |
+| 配套插件 | 你在 Home 上得到什么 |
 | --- | --- |
-| [乔木 Reader](https://github.com/joeseesun/qiaomu-reader) | 继续阅读（封面、进度）、添加图书、搜书名 |
-| [乔木 RSS](https://github.com/joeseesun/qiaomu-ai-rss) | 最新未读与未读数、添加订阅、搜文章 |
-| [乔木电台](https://github.com/joeseesun/qiaomu-radio) | 正在播放与最近电台，一键播放/暂停 |
-| [乔木 Agent](https://github.com/joeseesun/qiaomu-agent) | 最近对话、新对话；搜索框 `⌘↵` 直接提问 |
+| [乔木 Reader](https://github.com/joeseesun/qiaomu-reader) | 书的封面与阅读进度，继续阅读、添加图书、搜索书名 |
+| [乔木 RSS](https://github.com/joeseesun/qiaomu-ai-rss) | 未读文章与数量，打开文章、添加订阅、搜索文章 |
+| [乔木电台](https://github.com/joeseesun/qiaomu-radio) | 最近电台、播放状态，直接播放或暂停 |
+| [乔木 Agent](https://github.com/joeseesun/qiaomu-agent) | 最近对话、新对话，从搜索框直接提问 |
 
-插件之间不互相依赖：任何一个单独使用都正常。
+也欢迎其他插件接入：[公开协议与示例](docs/qiaomu-home-protocol.md)。协议文件独立采用 MIT 许可。
 
-## 让你的插件接入
+## 你的内容，仍然属于你的库
 
-乔木Home 用一个很小的公开协议发现其他插件。复制一个文件、设置 `plugin.qiaomuHome`，你的插件就会出现在主页上。见 [乔木Home 协议](docs/qiaomu-home-protocol.md)。
+- **无需账号，没有遥测。** 设置保存在本库插件数据中，待办和快速记录写入 Markdown。
+- **搜索在本地执行。** 只有主动调用 Agent 时，问题才交给它按你的配置处理。
+- **外部图片按需加载。** 壁纸来自 `images.unsplash.com`；自选 Unsplash 搜索使用 `api.unsplash.com`，密钥存在 Obsidian 密钥库。关于页二维码来自 `radio.qiaomu.ai`。
+- **插件安装由你决定。** 推荐模块只打开市场或设置入口，不会自动安装、启用其他插件。
 
-## 隐私
+### 使用说明与兼容性
 
-- 不需要账号。设置保存在本库的插件数据中；Unsplash Access Key 保存在 Obsidian 密钥库，设置里只存它的名称。
-- 网络请求只有壁纸：内置图库从 `images.unsplash.com` 加载图片；启用 Unsplash 搜索时，用你的密钥请求 `api.unsplash.com`（并按 Unsplash API 规范报告一次使用）。
-- 搜索只在本地进行。只有你按 `⌘↵` 时，问题才会交给乔木 Agent，由它按你的设置处理。
-- 乔木Home 从不安装或启用任何插件，只打开对应的插件市场或设置页面。
+桌面端已在真实 Obsidian 测试库验证；移动端尚未完成真机验收。核心日记未启用时，待办使用固定任务笔记。其他启动页插件可能接管同一入口，建议只让一个插件负责启动页。
 
-## 手动安装
+遇到问题？请在 [Issues](https://github.com/joeseesun/qiaomu-home/issues) 附上版本、系统、复现步骤和去除私人信息的截图。[版本更新记录](https://github.com/joeseesun/qiaomu-home/releases) 可查看每次发布的变化。
 
-推荐从 [Obsidian 社区目录](https://community.obsidian.md/plugins/qiaomu-home) 安装。也可下载同一版本 Release 的 `main.js`、`manifest.json`、`styles.css`，放进库的 `.obsidian/plugins/qiaomu-home/`，然后在 Obsidian 设置中启用「Qiaomu Home」。需要 Obsidian 1.11.4 或更新版本。0.1.0 已通过官方自动扫描；人工复核状态另行确认。
-
-如需从源码构建，请看下方开发说明。桌面端已在本地库验证；移动端尚无真机验收。
-
-## 开发
+## 开发与参与
 
 ```bash
-npm install
-npm run check   # lint + 测试 + 构建
+npm ci
+npm run check # lint、测试、类型检查和构建
 ```
 
-把 `main.js`、`manifest.json`、`styles.css` 复制到库的 `.obsidian/plugins/qiaomu-home/`，在设置中启用。
+将生成的 `main.js`、`manifest.json` 和 `styles.css` 复制到测试库的插件目录，即可加载。欢迎报告问题、提出使用场景或提交 PR；涉及交互的变更请附截图和验证步骤。
 
-## License
+**许可证：** [GPL-3.0-only](LICENSE)，另见 [商业授权说明](COMMERCIAL-LICENSE.md)。独立协议文件采用 MIT 许可；壁纸遵循 [Unsplash License](https://unsplash.com/license)，在界面内标注摄影师。
 
-GPL-3.0-only，另见 [商业授权说明](COMMERCIAL-LICENSE.md)。协议文件 `protocol/qiaomu-home.ts` / `.js` 以 MIT 授权，任何插件都可以直接复制使用。壁纸照片遵循 [Unsplash License](https://unsplash.com/license)，并在页面上署名摄影师。
+## 找到乔木
+
+[乔木](https://qiaomu.ai) · [博客](https://blog.qiaomu.ai) · [工具推荐](https://tuijian.qiaomu.ai) · [X @vista8](https://x.com/vista8) · [GitHub](https://github.com/joeseesun)
+
+微信公众号：**向阳乔木推荐看**。关注与支持二维码也可在插件「设置 → 关于」找到。
 
 ---
 
 <a id="english"></a>
 
-# English
+## English
 
-Qiaomu Home replaces Obsidian's startup page and empty new tabs with search, quick creation, recent notes, and optional cards from Qiaomu Reader, RSS, Radio, and Agent. It works without those optional plugins.
+### Make Obsidian a place you want to return to
 
-Version 0.2 adds Shift+Enter quick capture, native bookmarks, per-card visibility and item limits, and optional pages with independent layouts. It also fixes search layering and automatically reconnects plugin cards after loading or reloading.
+**Qiaomu Home** turns startup and empty new tabs into a personal start page. Bring together daily tasks, favorite notes and websites, recent work, and optional reading or media cards. Choose a wallpaper and start with the next small thing.
 
-## Install
+**[Install from the Obsidian community directory](https://community.obsidian.md/plugins/qiaomu-home)** · [Latest release](https://github.com/joeseesun/qiaomu-home/releases/latest) · [Report an issue](https://github.com/joeseesun/qiaomu-home/issues)
 
-Install from the [Obsidian community directory](https://community.obsidian.md/plugins/qiaomu-home). Alternatively, download `main.js`, `manifest.json`, and `styles.css` from the [0.2.0 release](https://github.com/joeseesun/qiaomu-home/releases/tag/0.3.0) into `.obsidian/plugins/qiaomu-home/` in your vault, then enable Qiaomu Home in Obsidian. Requires Obsidian 1.11.4 or newer. Version 0.1.0 passed the automated scan; manual review is a separate stage.
+### Install in three steps
 
-To build from source, run `npm install && npm run check` and copy the same three files. Desktop has been checked in a local vault; mobile has not been verified on a physical device.
+1. In Obsidian, open **Settings → Community plugins → Browse** and search for **Qiaomu Home**, or use the directory link above.
+2. Install and enable the plugin, then open a new tab.
+3. Select the **gear → Add content** to arrange your page.
 
-Search stays local. Wallpaper images load from Unsplash; optional Unsplash search uses a key stored in Obsidian SecretStorage. Asking Agent sends text only when you press its shortcut. See [privacy details](#隐私) and [license](LICENSE) (GPL-3.0-only; the standalone protocol files are MIT licensed).
+Requires **Obsidian 1.11.4 or newer**. For manual installation, download `main.js`, `manifest.json`, and `styles.css` from the same release into your vault's `.obsidian/plugins/qiaomu-home/` directory. Preserve `data.json` and caches when upgrading.
 
-### 开发版待办
+### Built around everyday use
 
-点击齿轮 → **＋ 添加内容 → 待办**。默认写入今日日记的「今日待办」，沿用日记目录、日期格式和模板；未启用日记时使用固定任务笔记。
+| Feature | What it gives you |
+| --- | --- |
+| Independent pages | Home, Reading, and Entertainment presets on new installs; rename, reorder, add, or remove optional pages. Existing layouts survive upgrades. |
+| Module library | Preview modules, add them to a page, and configure their visibility and item count. Cards default to three items. |
+| Daily tasks | Add and complete plain Markdown tasks in today's daily note, or a fixed note. Move unfinished tasks forward manually; automatic carry-forward is optional and off by default. |
+| Personal shortcuts | Open a note, folder, website, or today's daily note. Choose names and icons and reorder your entries. |
+| Search and capture | Find local notes by name, alias, or path. `Shift+Enter` captures text into an Inbox or daily note. |
+| Appearance | Choose from 50 credited Unsplash wallpapers, use a local image, or configure Unsplash search. Show a clock and greeting or your own text. |
+| Starter plugins | Discover 20 useful community plugins through short explanations. Show three by default, expand for more, and open official details before installing. |
+| Optional integrations | Continue books, RSS articles, radio, and conversations through Qiaomu Reader, RSS, Radio, and Agent. Home also works on its own. |
 
-- 默认展示 3 条，卡片菜单可调整；今天新增的任务优先显示。
-- 以前未完成的任务可以「全部移入今天」或「选择结转」，进入「昨日未完成」。父任务与缩进子任务一起移动，原笔记留下指向目标日期的记录，不标成已完成。
-- 卡片设置中可切换固定笔记、开启自动结转；自动结转默认关闭。
-- 原固定任务笔记中的未完成项也可结转；任务正文仍是普通 Markdown，暂不接 Tasks。
+The screenshots above are actual desktop UI with sample content, a custom heading, and a configured layout. Website shortcuts use selectable icons rather than fetching favicons. The Todo module does not currently integrate with Tasks.
 
-### 默认页签与设置
+### Privacy and compatibility
 
-新安装默认启用「主页、阅读、娱乐」：主页放今日代办、最近笔记与常用入口，阅读放 Reader/RSS，娱乐放电台与常用网站入口。主页不可删除；其他页签可改名或删除。已有布局保留，设置里可补充预设页签。
+No account or telemetry. Settings stay in the vault's plugin data; tasks and captures remain editable Markdown. Search runs locally. Text is handed to Agent only when you explicitly invoke it, and Agent then follows its own configuration.
 
-设置采用「主页、外观、记录、关于」四个分类；记录页统一管理快速记录和今日代办。组件布局仍可以直接在主页布置。
+Wallpaper images load from `images.unsplash.com`. Optional Unsplash search uses `api.unsplash.com` and a key stored in Obsidian SecretStorage. About-page QR images load from `radio.qiaomu.ai` when that page is opened. Recommended plugins are never installed or enabled automatically.
 
-### 0.3.0 更新
+Desktop behavior has been checked in real Obsidian test vaults. Mobile has not been verified on a physical device. Daily tasks fall back to a fixed task note when the core Daily Notes plugin is disabled. If another plugin manages your startup page or new tabs, configure only one to own that entry point.
 
-- 模块库、直接编辑布局、独立页签与可编辑快捷入口；新安装预设主页、阅读、娱乐。
-- 常用入口默认提供动态今日日记、X 和谷歌，可以改名、改图标、排序和删除；升级仅补充一次，不会恢复已删除的默认入口。
-- 今日代办写入日记，支持手动或可选自动结转；移入今天后原日记保留日期链接。
-- 修复「今日」不创建日记的问题，遵循核心日记的目录、日期格式与模板。
-- 移除 Home 书签模块，不改动 Obsidian 原生书签数据。
-- 设置重整为主页、外观、记录、关于；关于包含反馈入口、关注与支持二维码。
-- 新增 20 张精选壁纸，共 50 张；[摄影作品来源](docs/wallpaper-credits.md)。
+### Build, extend, and get help
 
-关于页二维码从 `radio.qiaomu.ai` 加载。只有打开关于页时才加载这些图片；无需登录，没有遥测。
+Run `npm ci` followed by `npm run check` for lint, tests, type checking, and a production build. Load the three generated plugin files into a test vault. For bugs, include your OS, Obsidian and plugin versions, reproduction steps, and a screenshot without private data.
 
-顶部可选择「时间与问候」或「自定义文本」。自定义内容即时保存，留空恢复时间显示；旧品牌与仓库名称模式迁移为时间显示。
+Other plugins can integrate through the [Qiaomu Home protocol](docs/qiaomu-home-protocol.md). The plugin is [GPL-3.0-only](LICENSE), with a separate [commercial licensing option](COMMERCIAL-LICENSE.md); standalone protocol files are MIT licensed. Photos follow the Unsplash License and retain photographer attribution.
+
+**[Give your next new tab a home →](https://community.obsidian.md/plugins/qiaomu-home)**

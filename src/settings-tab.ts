@@ -35,7 +35,7 @@ class ImageSuggest extends AbstractInputSuggest<TFile> {
 
 class CommandPicker extends FuzzySuggestModal<{ id: string; name: string; icon?: string }> {
   constructor(app: App, private onPick: (command: { id: string; name: string; icon?: string }) => void) {
-    super(app);
+    super(app); this.modalEl.addClass("qh-ui");
     this.setPlaceholder(L("选择要放到主页的命令", "Pick a command for Home"));
   }
   getItems() { return listCommands(this.app).sort((a, b) => a.name.localeCompare(b.name)); }
@@ -67,11 +67,11 @@ export class HomeSettingTab extends PluginSettingTab {
   display(): void { this.renderSettings(); }
   private renderSettings(): void {
     const root=this.containerEl;
-    root.empty();root.addClass("qh-settings");
+    root.empty();root.addClass("qh-settings", "qh-ui");
     const header=root.createDiv({cls:"qh-settings-header"});
     const identity=header.createDiv({cls:"qh-settings-identity"});
     setIcon(identity.createSpan({attr:{"aria-hidden":"true"}}),"tree-deciduous");
-    new Setting(identity).setName(L("乔木 Home","Qiaomu Home")).setHeading();
+    new Setting(identity).setName(L("乔木 Home", "Qiaomu Home")).setHeading();
     const nav=header.createDiv({cls:"qh-settings-tabs",attr:{role:"tablist"}});
     const navLabel=nav.createSpan({cls:"qh-sr-only",text:L("设置分类","Settings sections")});navLabel.id=`${this.instance}-label`;nav.setAttr("aria-labelledby",navLabel.id);
     const sections: {id:SettingsSection; label:string}[]=[{id:"home",label:L("主页","Home")},{id:"appearance",label:L("外观","Appearance")},{id:"capture",label:L("记录","Capture")},{id:"about",label:L("关于","About")}];

@@ -1,3 +1,4 @@
+import { renderBeginnerPlugins } from "./beginner-ui";
 import { renderTodo } from "./todo-ui";
 import { isChinese } from "./i18n";
 import { DragFeedback, dropAfter } from "./drag-feedback";
@@ -109,7 +110,7 @@ export class HomeView extends ItemView {
   async onOpen(): Promise<void> {
     const root = this.contentEl;
     root.empty();
-    root.addClass("qh-root");
+    root.addClass("qh-root", "qh-ui");
     this.dragFeedback = new DragFeedback(root);
     const backdrop = root.createDiv({ cls: "qh-backdrop" });
     this.photoEl = backdrop.createDiv({ cls: "qh-photo" });
@@ -515,6 +516,8 @@ export class HomeView extends ItemView {
     });
   }
 
+  private readonly expandedGuides = new Set<string>();
+
   private runAction(action: CreateAction): void {
     this.app.workspace.setActiveLeaf(this.leaf, { focus: true });
     void Promise.resolve(action.run(this.leaf)).catch((error: unknown) => { console.error("Qiaomu Home: action failed", error); new Notice(error instanceof Error ? error.message : t("error.command")); });
@@ -795,6 +798,7 @@ export class HomeView extends ItemView {
         else this.renderUnavailable(next, item);
       }
       if (moduleOptions(this.plugin.settings, "todo", page.id).visible) renderTodo(next, this.plugin, moduleOptions(this.plugin.settings, "todo", page.id).limit);
+      if (moduleOptions(this.plugin.settings, "beginner-plugins", page.id).visible) renderBeginnerPlugins(next, this.plugin, page.id, moduleOptions(this.plugin.settings, "beginner-plugins", page.id).limit, this.expandedGuides);
       this.renderRecommendations(next);
       for (const group of page.shortcutGroups) {
         if (moduleOptions(this.plugin.settings, shortcutModuleId(group.id), page.id).visible) renderShortcutGroup(next, this.plugin, page.id, group, this.editing, this.dragFeedback, (active) => { this.shortcutDragging = active; });

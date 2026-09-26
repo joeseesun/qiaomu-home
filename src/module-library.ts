@@ -18,7 +18,7 @@ export class ModuleLibrary extends Modal {
   private snapshot: unknown[] = [];
 
   constructor(private plugin: QiaomuHomePlugin, private pageId: string) {
-    super(plugin.app);
+    super(plugin.app); this.modalEl.addClass("qh-ui");
     plugin.register(() => this.close());
   }
 
@@ -129,7 +129,7 @@ export class ModuleLibrary extends Modal {
 }
 
 export class ModuleOptionsModal extends Modal {
-  constructor(private plugin: QiaomuHomePlugin, private pageId: string, private moduleId: string, private name: string) { super(plugin.app); }
+  constructor(private plugin: QiaomuHomePlugin, private pageId: string, private moduleId: string, private name: string) { super(plugin.app); this.modalEl.addClass("qh-ui"); }
   onOpen(): void {
     this.setTitle(this.name);
     new Setting(this.contentEl).setName(t("layout.count"))
@@ -145,7 +145,7 @@ export class ModuleOptionsModal extends Modal {
 }
 
 export class MoveModuleModal extends Modal {
-  constructor(private plugin: QiaomuHomePlugin, private pageId: string, private moduleId: string) { super(plugin.app); }
+  constructor(private plugin: QiaomuHomePlugin, private pageId: string, private moduleId: string) { super(plugin.app); this.modalEl.addClass("qh-ui"); }
   onOpen(): void {
     this.setTitle(t("layout.move"));
     const targets = this.plugin.settings.pages.filter((page) => page.id !== this.pageId);

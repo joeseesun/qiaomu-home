@@ -2,7 +2,7 @@ import { Modal, Setting, type App } from "obsidian";
 import { t } from "./i18n";
 
 export class NewPageModal extends Modal {
-  constructor(app: App, private onCreate: (name: string) => Promise<void>, private initialName = "", private heading = t("pages.add")) { super(app); }
+  constructor(app: App, private onCreate: (name: string) => Promise<void>, private initialName = "", private heading = t("pages.add")) { super(app); this.modalEl.addClass("qh-ui"); }
   onOpen(): void {
     this.setTitle(this.heading);
     const form = this.contentEl.createEl("form");
@@ -29,7 +29,7 @@ export class NewPageModal extends Modal {
 }
 
 export class DeletePageModal extends Modal {
-  constructor(app: App, private name: string, private onDelete: () => Promise<void>) { super(app); }
+  constructor(app: App, private name: string, private onDelete: () => Promise<void>) { super(app); this.modalEl.addClass("qh-ui"); }
   onOpen(): void {
     this.setTitle(t("pages.delete"));
     this.contentEl.createEl("p", { text: t("pages.deleteConfirm", { name: this.name }) });
