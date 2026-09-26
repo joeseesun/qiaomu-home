@@ -70,8 +70,6 @@ export interface HomeSettings {
   todoPath: string;
   todoDaily: boolean;
   todoAutoCarry: boolean;
-  /** Empty string reviews the whole vault except common template folders. */
-  reviewFolder: string;
   hiddenRecommendations: string[];
 }
 
@@ -124,7 +122,6 @@ export const DEFAULT_SETTINGS: HomeSettings = {
   todoPath: "Home Todo.md",
   todoDaily: true,
   todoAutoCarry: false,
-  reviewFolder: "",
   hiddenRecommendations: [],
 };
 
@@ -268,7 +265,6 @@ export function normalizeSettings(saved: unknown): HomeSettings {
     todoPath: text(raw.todoPath, defaults.todoPath),
     todoDaily: raw.todoDaily !== false,
     todoAutoCarry: raw.todoAutoCarry === true,
-    reviewFolder: text(raw.reviewFolder).trim().replace(/\/$/, ""),
     hiddenRecommendations: strings(raw.hiddenRecommendations),
   };
 }
