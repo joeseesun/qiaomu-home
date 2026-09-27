@@ -1,5 +1,6 @@
 import { fillTemplate, templateFileName } from "./quick-tools";
 import { cardAction, fieldRow } from "./card-ui";
+import { renderHabitCard } from "./habits";
 import { getAllTags, moment, Notice, TFile, setIcon } from "obsidian";
 import type QiaomuHomePlugin from "./main";
 import { isChinese, t } from "./i18n";
@@ -7,7 +8,7 @@ import { localDay, moduleOptions } from "./settings";
 import { PRODUCTIVITY_MODULES, type ProductivityId } from "./productivity-catalog";
 import { eligibleNote, focusRemaining, inFolder, taskProgress } from "./productivity-data";
 import { dailyExcerpt } from "./home-native-modules";
-import { dailyOptions, todayPath, ensureParent } from "./today";
+import { dailyOptions, todayPath, ensureParent, ensureTodayNote } from "./today";
 import { completeTodo } from "./todo-data";
 import { editorFor, update } from "./todo-files";
 
@@ -124,31 +125,7 @@ export function renderProductivity(parent: HTMLElement, plugin: QiaomuHomePlugin
       void plugin.saveSettings().catch(() => { if (previous) page.moduleOptions[id] = previous; else delete page.moduleOptions[id]; new Notice(t("layout.saveFailed")); });
     }, "save"); return;
   }
-  if (id === "habit-checkin") {
-    const names = [...new Set((options.query ?? "").split(/[,，\n]/).map(name => name.trim()).filter(name => name && !["__proto__", "constructor", "prototype"].includes(name)))].slice(0, 6);
-    if (!names.length) { message(L("选取今日日记中的习惯属性", "Choose habit properties from today's note")); button(body, L("设置习惯", "Set habits"), configure, "settings-2", true); return; }
-    run(async () => {
-      const path = await todayPath(app), file = app.vault.getAbstractFileByPath(path);
-      if (!card.isConnected) return; body.empty();
-      if (!(file instanceof TFile)) { message(L("先创建今天的日记，再开始打卡", "Create today's daily note before checking in")); return; }
-      const data = app.metadataCache.getFileCache(file)?.frontmatter ?? {};
-      for (const name of names) {
-        const label = body.createEl("label", { cls: "qh-habit-row" });
-        const checkbox = label.createEl("input", { type: "checkbox" }); checkbox.checked = data[name] === true;
-        const valid = data[name] === undefined || typeof data[name] === "boolean";
-        checkbox.disabled = !valid;
-        label.createSpan({ text: valid ? name : L(`${name}（需布尔属性）`, `${name} (boolean required)`) });
-        checkbox.addEventListener("change", () => {
-          const checked = checkbox.checked; checkbox.disabled = true;
-          void app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
-            if (frontmatter[name] !== undefined && typeof frontmatter[name] !== "boolean") throw new Error("Property changed");
-            frontmatter[name] = checked;
-          }).then(() => { if (checkbox.isConnected) checkbox.disabled = false; }).catch(() => { checkbox.checked = !checked; checkbox.disabled = false; new Notice(L("未能保存打卡，原属性已保留", "Could not save check-in; original property preserved")); });
-        });
-      }
-      button(body, L("打开今日日记", "Open today's note"), () => open(file), "arrow-up-right");
-    }); return;
-  }
+  if (id === "habit-checkin") { renderHabitCard(body, card, plugin, pageId, configure); return; }
   if (id === "focus-timer") {
     const save = (previous: typeof plugin.settings.focusSession) => void plugin.saveSettings().catch(() => { plugin.settings.focusSession = previous; new Notice(t("layout.saveFailed")); plugin.eachView(view => view.render()); });
     const dial = body.createDiv({ cls: "qh-focus-dial" });
@@ -215,7 +192,15 @@ export function renderProductivity(parent: HTMLElement, plugin: QiaomuHomePlugin
     run(async () => {
       const path = id === "daily-timeline" ? await todayPath(app) : options.path!;
       const file = app.vault.getAbstractFileByPath(path);
-      if (!(file instanceof TFile)) { if (card.isConnected) { body.empty(); message(L("笔记尚不存在", "Note does not exist yet")); button(body, L("设置来源", "Configure source"), configure, "settings-2", true); } return; }
+      if (!(file instanceof TFile)) {
+        if (!card.isConnected) return;
+        body.empty();
+        if (id === "daily-timeline") {
+          message(L("今天还没有日记。写下「09:30 开会」这样带时间的行，就会出现在这里。", "No daily note yet. Lines like “09:30 meeting” will appear here."));
+          button(body, L("创建今日日记", "Create today's note"), () => void ensureTodayNote(app).then(created => open(created)).catch((error: unknown) => new Notice(error instanceof Error ? error.message : String(error))), "plus", true);
+        } else { message(L("选择的笔记已移动或删除", "The chosen note was moved or deleted")); button(body, L("重新选择", "Choose again"), configure, "settings-2", true); }
+        return;
+      }
       const content = editorFor(app, file)?.getValue() ?? await app.vault.cachedRead(file);
       if (!card.isConnected) return; body.empty();
       if (id === "goal-progress") {

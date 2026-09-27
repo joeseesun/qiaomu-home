@@ -5,6 +5,8 @@ import { isExtra } from "./extra-catalog";
 import { INTEGRATIONS, isIntegration } from "./integrations";
 import { FilePicker, defaultFolderLabel, folderDropdown, renderExtraOptions } from "./extra-ui";
 import { renderTodoPreferences } from "./todo-ui";
+import { SYNTAX_EXAMPLES, autoSave, flushFields } from "./option-fields";
+import { renderHabitEditor } from "./habits";
 import { GithubConnectModal, githubConnected } from "./github";
 import { EXTENSION_PROMPT_EN, EXTENSION_PROMPT_ZH } from "./extension-prompt";
 import { loadRegistry, SUBMIT_URL } from "./registry";
@@ -315,10 +317,8 @@ export class ModuleOptionsModal extends Modal {
         .addButton(button => button.setButtonText(state === "disabled" ? L("去启用", "Turn on") : L("安装", "Install")).setCta()
           .onClick(() => state === "disabled" ? openCommunityPluginSettings(this.app) : openPluginPage(integration.plugin)));
       if (this.moduleId === "dataview-query") {
-        let query = options.query ?? "";
-        new Setting(this.contentEl).setName(L("Dataview 查询", "Dataview query")).setDesc(L("支持 LIST 和 TABLE，例如：LIST FROM #项目 SORT file.mtime DESC", "LIST and TABLE, e.g. LIST FROM #project SORT file.mtime DESC"))
-          .addTextArea(input => { input.inputEl.rows = 4; input.setValue(query).onChange(value => { query = value; }); });
-        new Setting(this.contentEl).addButton(button => button.setButtonText(L("保存查询", "Save query")).setCta().onClick(async () => { if (await persist({ query: query.trim().slice(0, 500) })) new Notice(L("已保存查询", "Query saved")); }));
+        const setting = new Setting(this.contentEl).setName(L("Dataview 查询", "Dataview query")).setDesc(L("支持 LIST 和 TABLE，例如：LIST FROM #项目 SORT file.mtime DESC。离开输入框或按 ⌘↵ 保存。", "LIST and TABLE, e.g. LIST FROM #project SORT file.mtime DESC. Saves when you leave the field or press ⌘↵."));
+        setting.addTextArea(input => { input.inputEl.rows = 4; input.inputEl.placeholder = SYNTAX_EXAMPLES.dataview; input.setValue(options.query ?? ""); autoSave(this.contentEl, setting, input.inputEl, value => persist({ query: value.trim().slice(0, 500) })); });
       }
       if (["dataview-query", "kanban-boards", "excalidraw-drawings", "omnisearch", "quickadd-actions"].includes(this.moduleId)) new Setting(this.contentEl).setName(t("layout.count"))
         .addDropdown(dropdown => dropdown.addOptions(Object.fromEntries(Array.from({ length: 6 }, (_, i) => [String(i + 1), String(i + 1)])))
@@ -326,17 +326,18 @@ export class ModuleOptionsModal extends Modal {
       return;
     }
     if (this.moduleId === "countdown") {
-      let label = this.plugin.settings.countdown.label, date = this.plugin.settings.countdown.date;
-      new Setting(this.contentEl).setName(L("日期名称", "Event name")).addText(input => input.setValue(label).onChange(value => { label = value; }));
-      new Setting(this.contentEl).setName(L("日期", "Date")).addText(input => { input.inputEl.type = "date"; input.setValue(date).onChange(value => { date = value; }); });
-      new Setting(this.contentEl).addButton(button => button.setButtonText(L("保存", "Save")).setCta().onClick(async () => {
-        if (!validDay(date)) { new Notice(L("请选择有效日期", "Choose a valid date")); return; }
+      const save = async (change: Partial<typeof this.plugin.settings.countdown>) => {
         const previous = this.plugin.settings.countdown;
-        this.plugin.settings.countdown = { label: label.trim().slice(0, 80), date };
-        button.setDisabled(true);
-        try { await this.plugin.saveSettings(); this.close(); }
-        catch { this.plugin.settings.countdown = previous; button.setDisabled(false); new Notice(t("layout.saveFailed")); }
-      })); return;
+        this.plugin.settings.countdown = { ...previous, ...change };
+        try { await this.plugin.saveSettings(); } catch (error) { this.plugin.settings.countdown = previous; throw error; }
+      };
+      const name = new Setting(this.contentEl).setName(L("日期名称", "Event name"));
+      name.addText(input => { input.setPlaceholder(L("例如：旅行出发", "e.g. Trip starts")).setValue(this.plugin.settings.countdown.label); autoSave(this.contentEl, name, input.inputEl, value => save({ label: value.trim().slice(0, 80) })); });
+      const day = new Setting(this.contentEl).setName(L("日期", "Date"));
+      day.addText(input => { input.inputEl.type = "date"; input.setValue(this.plugin.settings.countdown.date);
+        autoSave(this.contentEl, day, input.inputEl, value => { if (!validDay(value)) throw new Error(L("请选择有效日期", "Choose a valid date")); return save({ date: value }); }); });
+      if (!this.plugin.settings.countdown.date) window.setTimeout(() => name.controlEl.querySelector("input")?.focus());
+      return;
     }
     if (Object.hasOwn(DISCOVERY_MODULES, this.moduleId)) {
       const config = DISCOVERY_MODULES[this.moduleId as DiscoveryModuleId];
@@ -355,16 +356,14 @@ export class ModuleOptionsModal extends Modal {
         await persist({ sites: next });
       }));
       if (multi) {
-        let templates = (options.customSites ?? []).map(site => `${site.name} | ${site.url}`).join("\n");
-        new Setting(this.contentEl).setName(L("自定义搜索网站", "Custom search sites")).setDesc(L("每行一个，最多八个：名称 | https://example.com/?q={query}", "One per line, up to eight: Name | https://example.com/?q={query}")).addTextArea(input => input.setValue(templates).onChange(value => { templates = value; }));
-        new Setting(this.contentEl).addButton(button => button.setButtonText(L("保存网站", "Save sites")).onClick(async () => {
-          try {
-            const customSites = parseSearchTemplates(templates);
+        const custom = new Setting(this.contentEl).setName(L("自定义搜索网站", "Custom search sites")).setDesc(L("每行一个，最多八个：名称 | https://example.com/?q={query}。离开输入框或按 ⌘↵ 保存。", "One per line, up to eight: Name | https://example.com/?q={query}. Saves when you leave the field or press ⌘↵."));
+        custom.addTextArea(input => { input.inputEl.rows = 4; input.setPlaceholder("知乎 | https://www.zhihu.com/search?q={query}").setValue((options.customSites ?? []).map(site => `${site.name} | ${site.url}`).join("\n"));
+          autoSave(this.contentEl, custom, input.inputEl, value => {
+            const customSites = parseSearchTemplates(value);
             const previous = moduleOptions(this.plugin.settings, this.moduleId, this.pageId);
             const sites = [...(previous.sites ?? defaultSites(config.sites)).filter(id => !id.startsWith("custom:")), ...customSites.map(site => `custom:${site.url}`)];
-            if (await persist({ customSites, sites })) new Notice(L("已保存搜索网站", "Search sites saved"));
-          } catch (error) { new Notice(error instanceof Error ? error.message : L("网址格式无效", "Invalid search template")); }
-        }));
+            return persist({ customSites, sites });
+          }); });
       } else if (config.sites.some(site => site.search)) this.contentEl.createEl("p", { cls: "qh-native-scope", text: L("按回车时使用第一个显示的来源；网络请求只在点击后发生。", "Enter uses the first shown source; nothing is requested until you click.") });
       return;
     }
@@ -378,16 +377,12 @@ export class ModuleOptionsModal extends Modal {
       const setting = new Setting(this.contentEl).setName(this.moduleId === "template-create" ? L("模板笔记", "Template note") : L("来源笔记", "Source note")).setDesc(options.path || L("尚未选择", "Not selected"));
       setting.addButton(button => button.setButtonText(L("选择笔记", "Choose note")).onClick(() => new FilePicker(this.plugin, ["md"], file => { void persist({ path: file.path }).then(() => setting.setDesc(moduleOptions(this.plugin.settings, this.moduleId, this.pageId).path ?? "")); }).open()));
     }
-    if (this.moduleId === "habit-checkin") {
-      let names = options.query ?? "";
-      new Setting(this.contentEl).setName(L("习惯属性", "Habit properties")).setDesc(L("用逗号分隔，最多六项。例如：运动, 阅读。打卡只修改今日日记中这些属性的 true / false 值。", "Comma-separated, up to six. Check-ins update only these boolean properties in today's note.")).addText(input => input.setValue(names).onChange(value => { names = value; }));
-      new Setting(this.contentEl).addButton(button => button.setButtonText(L("保存", "Save")).onClick(async () => { if (await persist({ query: names.trim().slice(0, 500) })) new Notice(L("已保存习惯", "Habits saved")); })); return;
-    }
+    if (this.moduleId === "habit-checkin") { renderHabitEditor(this.contentEl, this.plugin, this.pageId); return; }
     if (this.moduleId === "working-set") { this.contentEl.createEl("p", { text: L("在卡片上保存当前笔记组；恢复时会跳过已打开的笔记。", "Save open notes on the card. Restore skips notes already open.") }); return; }
     if (this.moduleId === "saved-search") {
-      let query = options.query ?? "";
-      new Setting(this.contentEl).setName(L("搜索条件", "Search query")).setDesc(L('例如：tag:#工作 path:"Projects"', 'For example: tag:#work path:"Projects"')).addText(input => input.setValue(query).onChange(value => { query = value; }));
-      new Setting(this.contentEl).addButton(button => button.setButtonText(L("保存", "Save")).onClick(async () => { if (await persist({ query: query.trim().slice(0, 500) })) new Notice(L("已保存搜索条件", "Search query saved")); })); return;
+      const setting = new Setting(this.contentEl).setName(L("搜索条件", "Search query")).setDesc(L('例如：tag:#工作 path:"Projects"。回车或离开输入框即保存。', 'For example: tag:#work path:"Projects". Saves on Enter or when you leave the field.'));
+      setting.addText(input => { input.inputEl.placeholder = SYNTAX_EXAMPLES.search; input.setValue(options.query ?? ""); autoSave(this.contentEl, setting, input.inputEl, value => persist({ query: value.trim().slice(0, 500) })); window.setTimeout(() => input.inputEl.focus()); });
+      return;
     }
     if (this.moduleId === "focus-timer") {
       new Setting(this.contentEl).setName(L("每次专注时长", "Session duration")).setDesc(L("正在运行的计时保持不变；重置或下次开始时采用新时长。", "Running sessions keep their deadline; reset or start again to use the new duration.")).addDropdown(dropdown => dropdown.addOptions(Object.fromEntries([5, 15, 25, 45, 60, 90].map(minutes => [String(minutes), L(`${minutes} 分钟`, `${minutes} minutes`)]))).setValue(String(this.plugin.settings.focusSession.durationMinutes)).onChange(async value => {
@@ -442,7 +437,7 @@ export class ModuleOptionsModal extends Modal {
           catch { new Notice(t("layout.saveFailed")); }
         }));
   }
-  onClose(): void { this.contentEl.empty(); }
+  onClose(): void { flushFields(this.contentEl); this.contentEl.empty(); }
 }
 
 export class MoveModuleModal extends Modal {

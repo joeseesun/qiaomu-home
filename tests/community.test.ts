@@ -79,3 +79,24 @@ describe("activity streak", () => {
     expect(activityStreak([{ count: 0 }, { count: 0 }])).toBe(0);
   });
 });
+
+import { habitNames, habitProblem, habitStreak, MAX_HABITS } from "../src/habits";
+describe("habits", () => {
+  it("parses saved names, dropping duplicates and reserved keys", () => {
+    expect(habitNames("运动, 阅读，运动\n冥想, tags, __proto__")).toEqual(["运动", "阅读", "冥想"]);
+    expect(habitNames(undefined)).toEqual([]);
+  });
+  it("explains why a new habit cannot be added", () => {
+    expect(habitProblem("  ", [])).not.toBeNull();
+    expect(habitProblem("a,b", [])).not.toBeNull();
+    expect(habitProblem("阅读", ["阅读"])).not.toBeNull();
+    expect(habitProblem("新习惯", Array.from({ length: MAX_HABITS }, (_, i) => `h${i}`))).not.toBeNull();
+    expect(habitProblem("跑步 30 分钟", ["阅读"])).toBeNull();
+  });
+  it("counts streaks from past days plus today", () => {
+    const past = [undefined, true, true, false, true];
+    expect(habitStreak(offset => past[offset], true)).toBe(3);
+    expect(habitStreak(offset => past[offset], false)).toBe(2);
+    expect(habitStreak(() => undefined, false)).toBe(0);
+  });
+});

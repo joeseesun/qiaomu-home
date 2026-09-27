@@ -15,6 +15,7 @@ import { fillTemplate, templateFileName } from "./quick-tools";
 import { localDay, moduleOptions, type ModuleOptions } from "./settings";
 import { dailyExcerpt } from "./home-native-modules";
 import { captureNote, dailyOptions, ensureParent } from "./today";
+import { SYNTAX_EXAMPLES, autoSave } from "./option-fields";
 
 const L = (zh: string, en: string) => isChinese() ? zh : en;
 interface Day { format(pattern?: string): string; clone(): Day; startOf(unit: string): Day; endOf(unit: string): Day; diff(other: Day, unit: string): number }
@@ -491,6 +492,12 @@ type Persist = (change: Partial<ModuleOptions>) => Promise<boolean | undefined>;
 export function renderExtraOptions(contentEl: HTMLElement, plugin: QiaomuHomePlugin, pageId: string, id: ExtraId, persist: Persist): void {
   const options = moduleOptions(plugin.settings, id, pageId);
   const current = () => moduleOptions(plugin.settings, id, pageId);
+  /** Applies a change to global settings and rolls it back if saving fails; errors surface in the field. */
+  const commitGlobal = async (apply: () => void) => {
+    const snapshot = structuredClone(plugin.settings);
+    apply();
+    try { await plugin.saveSettings(); } catch (error) { Object.assign(plugin.settings, snapshot); throw error; }
+  };
   const saveGlobal = async (apply: () => void, undo: () => void) => {
     apply();
     try { await plugin.saveSettings(); } catch { undo(); new Notice(t("layout.saveFailed")); }
@@ -521,13 +528,15 @@ export function renderExtraOptions(contentEl: HTMLElement, plugin: QiaomuHomePlu
           const previous = plugin.settings.captureTarget;
           void saveGlobal(() => { plugin.settings.captureTarget = value as "inbox" | "daily"; }, () => { plugin.settings.captureTarget = previous; });
         }));
-    let path = plugin.settings.captureInboxPath;
-    new Setting(contentEl).setName(L("收件箱路径", "Inbox path")).addText(input => input.setValue(path).onChange(value => { path = value; }))
-      .addButton(button => button.setButtonText(L("保存", "Save")).onClick(() => {
-        const previous = plugin.settings.captureInboxPath, next = path.trim();
-        if (!next.toLowerCase().endsWith(".md")) { new Notice(t("capture.badPath")); return; }
-        void saveGlobal(() => { plugin.settings.captureInboxPath = next; }, () => { plugin.settings.captureInboxPath = previous; });
-      }));
+    const inbox = new Setting(contentEl).setName(L("收件箱笔记", "Inbox note")).setDesc(L("库内 Markdown 路径，例如 Inbox.md 或 Inbox/速记.md。", "A Markdown path in the vault, e.g. Inbox.md."));
+    inbox.addText(input => { input.setValue(plugin.settings.captureInboxPath);
+      autoSave(contentEl, inbox, input.inputEl, value => {
+        const next = value.trim();
+        if (!next.toLowerCase().endsWith(".md") || next.startsWith("/") || next.split("/").includes("..")) throw new Error(t("capture.badPath"));
+        return commitGlobal(() => { plugin.settings.captureInboxPath = next; });
+      });
+      inbox.addButton(button => button.setButtonText(L("选择", "Choose")).onClick(() => new FilePicker(plugin, ["md"], file => { input.setValue(file.path); input.inputEl.dispatchEvent(new Event("change")); }).open()));
+    });
     return;
   }
   if (id === "weekly-review") {
@@ -535,34 +544,34 @@ export function renderExtraOptions(contentEl: HTMLElement, plugin: QiaomuHomePlu
     try { week = weeklyNote(plugin, options); } catch { /* shown below */ }
     if (week?.periodic) { contentEl.createEl("p", { text: L(`正在使用 Periodic Notes 的周记设置：${week.path}`, `Using Periodic Notes weekly settings: ${week.path}`) }); count(); return; }
     folderDropdown(contentEl, plugin, L("周记文件夹", "Weekly note folder"), defaultFolderLabel(plugin), options.folder ?? "", value => { void persist({ folder: value }); });
-    let format = options.format ?? "gggg-[W]ww";
-    const preview = new Setting(contentEl).setName(L("文件名格式", "File name format")).setDesc(`${L("本周", "This week")}：${mo().format(format)}`);
-    preview.addText(input => input.setValue(format).onChange(value => { format = value; preview.setDesc(`${L("本周", "This week")}：${mo().format(value || "gggg-[W]ww")}`); }))
-      .addButton(button => button.setButtonText(L("保存", "Save")).onClick(() => { void persist({ format: format.trim() || undefined }); }));
+    const preview = new Setting(contentEl).setName(L("文件名格式", "File name format"));
+    const sample = preview.descEl.createDiv({ text: `${L("本周", "This week")}：${mo().format(options.format ?? "gggg-[W]ww")}.md` });
+    preview.addText(input => { input.inputEl.placeholder = SYNTAX_EXAMPLES.weekly; input.setValue(options.format ?? "gggg-[W]ww");
+      input.inputEl.addEventListener("input", () => sample.setText(`${L("本周", "This week")}：${mo().format(input.getValue() || "gggg-[W]ww")}.md`));
+      autoSave(contentEl, preview, input.inputEl, value => {
+        if (/[\\:*?"<>|]/.test(mo().format(value || "gggg-[W]ww"))) throw new Error(L("格式会生成无效的文件名", "This format produces an invalid file name"));
+        return persist({ format: value.trim() || undefined });
+      }); });
     notePicker(L("周记模板（可选）", "Template (optional)"), ["md"], L("未选择时使用简洁的三段式结构", "Without one, a simple three-part outline is used"), true);
     count(); return;
   }
   if (id === "day-progress") {
-    let start = options.start ?? "09:00", end = options.end ?? "18:00";
-    new Setting(contentEl).setName(L("工作时段", "Work hours")).setDesc(L("结束时间需晚于开始时间。", "End must be later than start."))
-      .addText(input => { input.inputEl.type = "time"; input.setValue(start).onChange(value => { start = value; }); })
-      .addText(input => { input.inputEl.type = "time"; input.setValue(end).onChange(value => { end = value; }); })
-      .addButton(button => button.setButtonText(L("保存", "Save")).onClick(() => {
-        const from = clockMinutes(start), to = clockMinutes(end);
-        if (from === null || to === null || to <= from) { new Notice(L("请填写有效的时段", "Enter a valid time range")); return; }
-        void persist({ start, end });
-      }));
+    const hours = new Setting(contentEl).setName(L("工作时段", "Work hours")).setDesc(L("开始 — 结束，改完即保存。", "Start — end; saved as you change them."));
+    const check = (start: string, end: string) => {
+      const from = clockMinutes(start), to = clockMinutes(end);
+      if (from === null || to === null || to <= from) throw new Error(L("结束时间需晚于开始时间", "End must be later than start"));
+    };
+    hours.addText(input => { input.inputEl.type = "time"; input.setValue(options.start ?? "09:00");
+      autoSave(contentEl, hours, input.inputEl, value => { check(value, current().end ?? "18:00"); return persist({ start: value }); }); });
+    hours.addText(input => { input.inputEl.type = "time"; input.setValue(options.end ?? "18:00");
+      autoSave(contentEl, hours, input.inputEl, value => { check(current().start ?? "09:00", value); return persist({ end: value }); }); });
     return;
   }
   if (id === "world-clock") {
-    let text = zoneLines(options.zones?.length ? options.zones : defaultZones(isChinese()));
-    new Setting(contentEl).setName(L("城市与时区", "Cities and time zones"))
-      .setDesc(L("每行一个，最多八个：名称 | 时区，例如 东京 | Asia/Tokyo", "One per line, up to eight: Name | Zone, e.g. Tokyo | Asia/Tokyo"))
-      .addTextArea(input => { input.inputEl.rows = 5; input.setValue(text).onChange(value => { text = value; }); });
-    new Setting(contentEl).addButton(button => button.setButtonText(L("保存", "Save")).setCta().onClick(() => {
-      try { void persist({ zones: parseZones(text, isChinese()) }).then(ok => { if (ok) new Notice(L("已保存", "Saved")); }); }
-      catch (error) { new Notice(error instanceof Error ? error.message : String(error)); }
-    }));
+    const zones = new Setting(contentEl).setName(L("城市与时区", "Cities and time zones"))
+      .setDesc(L("每行一个，最多八个：名称 | 时区，例如 东京 | Asia/Tokyo。离开输入框或按 ⌘↵ 保存。", "One per line, up to eight: Name | Zone, e.g. Tokyo | Asia/Tokyo. Saves when you leave the field or press ⌘↵."));
+    zones.addTextArea(input => { input.inputEl.rows = 5; input.setValue(zoneLines(options.zones?.length ? options.zones : defaultZones(isChinese())));
+      autoSave(contentEl, zones, input.inputEl, value => persist({ zones: parseZones(value, isChinese()) })); });
     return;
   }
   if (id === "weather") {
@@ -611,15 +620,14 @@ export function renderExtraOptions(contentEl: HTMLElement, plugin: QiaomuHomePlu
   }
   if (id === "calendar-next") {
     notePicker(L("库中的 .ics 文件", ".ics file in vault"), ["ics"], L("优先使用本地文件", "A local file takes priority"), true);
-    let url = options.url ?? "";
-    new Setting(contentEl).setName(L("或订阅地址", "Or subscription URL")).setDesc(L("支持 https:// 与 webcal://。地址可能包含私密令牌，只保存在本插件设置中；每 15 分钟最多请求一次。", "https:// or webcal://. The URL may contain a private token and stays in this plugin's settings; fetched at most every 15 minutes."))
-      .addText(input => input.setPlaceholder("https://…/basic.ics").setValue(url).onChange(value => { url = value; }))
-      .addButton(button => button.setButtonText(L("保存", "Save")).onClick(() => {
-        if (!url.trim()) { void persist({ url: undefined }); return; }
-        const valid = calendarUrl(url);
-        if (!valid) { new Notice(L("请输入有效的 https 或 webcal 地址", "Enter a valid https or webcal URL")); return; }
-        void persist({ url: valid }).then(ok => { if (ok) new Notice(L("已保存日历地址", "Calendar URL saved")); });
-      }));
+    const subscription = new Setting(contentEl).setName(L("或订阅地址", "Or subscription URL")).setDesc(L("支持 https:// 与 webcal://。地址可能包含私密令牌，只保存在本插件设置中；每 15 分钟最多请求一次。", "https:// or webcal://. The URL may contain a private token and stays in this plugin's settings; fetched at most every 15 minutes."));
+    subscription.addText(input => { input.inputEl.type = "url"; input.setPlaceholder("https://…/basic.ics").setValue(options.url ?? "");
+      autoSave(contentEl, subscription, input.inputEl, value => {
+        if (!value.trim()) return persist({ url: undefined });
+        const valid = calendarUrl(value);
+        if (!valid) throw new Error(L("请输入有效的 https 或 webcal 地址", "Enter a valid https or webcal URL"));
+        return persist({ url: valid });
+      }); });
     contentEl.createEl("p", { cls: "qh-native-scope", text: L("支持单次与每日/每周/每月/每年重复的日程；带时区的时间按本机时间显示。", "Supports single and daily/weekly/monthly/yearly repeating events; zoned times are shown as local time.") });
     count(); return;
   }

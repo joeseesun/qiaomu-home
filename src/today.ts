@@ -97,8 +97,8 @@ async function appendLine(app: App, path: string, line: string, daily: boolean):
   await app.vault.process(file, (content) => `${content}${content && !content.endsWith("\n") ? "\n" : ""}${line}\n`);
 }
 
-/** Resolve the date at click time and never overwrite an existing diary. */
-export async function openTodayNote(app: App, leaf: WorkspaceLeaf): Promise<void> {
+/** Today's daily note, created from the daily template when missing. Never overwrites an existing note. */
+export async function ensureTodayNote(app: App): Promise<TFile> {
   if (!commandExists(app, "daily-notes")) throw new Error(t("capture.noDaily"));
   const path = await todayPath(app);
   await ensureParent(app, path);
@@ -109,5 +109,10 @@ export async function openTodayNote(app: App, leaf: WorkspaceLeaf): Promise<void
     catch (error) { file = app.vault.getAbstractFileByPath(path); if (!file) throw error; }
   }
   if (!(file instanceof TFile)) throw new Error(t("capture.badFile"));
-  await leaf.openFile(file, {active:true});
+  return file;
+}
+
+/** Resolve the date at click time and never overwrite an existing diary. */
+export async function openTodayNote(app: App, leaf: WorkspaceLeaf): Promise<void> {
+  await leaf.openFile(await ensureTodayNote(app), {active:true});
 }

@@ -1310,3 +1310,34 @@ body:not(.is-mobile) .workspace-leaf-content[data-type="qiaomu-home"] > .view-he
 .qh-ui .qh-plugin-guide > .qh-native-open { align-self: flex-start; margin-inline-start: 0; }
 .qh-ui .qh-template-option { justify-content: flex-start; }
 .qh-library-retry { margin-inline-start: auto; }
+
+/* Habits: tappable pills with streaks and a daily summary. */
+.qh-ui .qh-habits { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 10px; }
+.qh-root .qh-habit-pill {
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px 0 9px;
+  border: 1px solid var(--qh-border); border-radius: 999px; background: var(--qh-field); box-shadow: none;
+  color: var(--qh-text); font-size: 13px; cursor: pointer; transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+.qh-root .qh-habit-pill:hover { background: var(--qh-hover); border-color: var(--qh-border-strong); }
+.qh-root .qh-habit-pill:active { transform: scale(0.97); }
+.qh-root .qh-habit-pill.is-done { border-color: color-mix(in srgb, var(--qh-live) 60%, transparent); background: color-mix(in srgb, var(--qh-live) 16%, var(--qh-field)); }
+.qh-root .qh-habit-pill:disabled { opacity: 0.6; cursor: default; }
+.qh-root .qh-habit-check { display: inline-flex; color: var(--qh-muted); }
+.qh-root .qh-habit-pill.is-done .qh-habit-check { color: var(--qh-live); }
+.qh-root .qh-habit-check svg { width: 16px; height: 16px; }
+.qh-root .qh-habit-streak { color: var(--qh-faint); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.qh-root .qh-habit-streak:empty { display: none; }
+.qh-ui .qh-habit-summary { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 10px; color: var(--qh-muted, var(--text-muted)); font-size: 12.5px; }
+.qh-ui .qh-habit-summary .qh-native-scope { grid-column: 1 / -1; padding: 0; }
+
+/* Habit editor and auto-saved fields. */
+.qh-habit-ideas { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 0 8px; }
+.qh-ui .qh-idea-chip { height: 28px; padding: 0 10px; border-radius: 999px; box-shadow: none; border: 1px dashed var(--background-modifier-border-hover); background: transparent; color: var(--text-muted); font-size: var(--font-ui-small); }
+.qh-ui .qh-idea-chip:hover { border-style: solid; color: var(--text-normal); background: var(--background-modifier-hover); }
+.qh-habit-note { margin-top: 12px; }
+.qh-ui .qh-save-state { min-height: 0; margin-top: 4px; font-size: var(--font-ui-smaller); color: var(--text-muted); }
+.qh-ui .qh-save-state:empty { display: none; }
+.qh-ui .qh-save-state.is-saved { color: var(--text-success, var(--color-green)); }
+.qh-ui .qh-save-state.is-error { color: var(--text-error); }
+.qh-ui .is-invalid, .qh-ui .is-invalid:focus, .qh-ui .is-invalid:focus-visible { border-color: var(--text-error) !important; }
+.qh-habit-editor .setting-item { padding: 8px 0; } .qh-habit-editor .setting-item-heading { padding-inline-start: 0; }

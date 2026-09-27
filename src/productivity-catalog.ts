@@ -1,6 +1,6 @@
 export const PRODUCTIVITY_MODULES = {
   "template-create": { zh: "模板速建", en: "Create from template", icon: "file-plus-2", description: "用选定的 Markdown 模板创建新笔记。", descriptionEn: "Create a note from a chosen Markdown template.", folder: true, path: true, count: false },
-  "habit-checkin": { zh: "今日习惯", en: "Daily habits", icon: "circle-check", description: "把日记中的布尔属性作为今日打卡。", descriptionEn: "Check in using boolean properties in today's note.", folder: false, path: false, count: false },
+  "habit-checkin": { zh: "今日习惯", en: "Daily habits", icon: "circle-check", description: "每天点一下，给几个小习惯打卡，记录保存在日记里。", descriptionEn: "Tap to check off a few daily habits; records live in your daily notes.", folder: false, path: false, count: false },
   "working-set": { zh: "笔记工作集", en: "Note working set", icon: "panels-top-left", description: "保存当前打开的笔记，下次一起恢复。", descriptionEn: "Save open notes and reopen them together.", folder: false, path: false, count: false },
   "due-today": { zh: "今日到期", en: "Due today", icon: "calendar-check", description: "汇总未完成、今天到期的 Markdown 任务。", descriptionEn: "Unfinished Markdown tasks due today.", folder: true, path: false, count: true },
   "overdue": { zh: "逾期任务", en: "Overdue tasks", icon: "calendar-x", description: "找到散落在笔记中、已经过期的任务。", descriptionEn: "Find overdue tasks across your notes.", folder: true, path: false, count: true },

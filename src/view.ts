@@ -31,7 +31,7 @@ import { connectionSnapshot, connectionsChanged, connectionState } from "./conne
 import { HOME_CHANGED_EVENT, findHomeProviders, type HomeAction, type HomeItem, type HomeProvider, type HomeSection } from "./protocol/qiaomu-home";
 import { SEARCHABLE, noteNameFromQuery, rankNotes, type NoteCandidate } from "./search";
 import { loadActions, searchProvider } from "./sources";
-import { captureNote, openTodayNote, todayPath } from "./today";
+import { captureNote, ensureParent, openTodayNote, todayPath } from "./today";
 
 export const HOME_VIEW_TYPE = "qiaomu-home";
 
@@ -153,6 +153,11 @@ export class HomeView extends ItemView {
     }));
     this.registerEvent(this.app.workspace.on("editor-change", (_editor, info) => { if (this.plugin.settings.todoDaily || info.file?.path === this.plugin.settings.todoPath) refreshTodo(); }));
     this.registerEvent(this.app.metadataCache.on("resolved", () => this.refreshSoon()));
+    // Property-driven cards (habits, tags) must render after the cache has the new frontmatter, not on the raw modify.
+    this.registerEvent(this.app.metadataCache.on("changed", () => {
+      const page = currentPage(this.plugin.settings);
+      if (["habit-checkin", "tag-cloud", "kanban-boards", "excalidraw-drawings", "spaced-review"].some(id => moduleOptions(this.plugin.settings, id, page.id).visible)) this.refreshSoon();
+    }));
     this.registerEvent(this.app.vault.on("rename", () => this.refreshSoon()));
     this.registerEvent(this.app.vault.on("delete", () => this.refreshSoon()));
     this.registerEvent(this.app.vault.on("create", () => this.refreshSoon()));
@@ -974,10 +979,13 @@ export class HomeView extends ItemView {
     const card = this.nativeCard(parent, "daily-preview", isChinese() ? "今日日记" : "Today's note", "calendar-days");
     const body = card.createDiv({ cls: "qh-native-preview" });
     body.createDiv({ cls: "qh-card-empty", text: isChinese() ? "正在读取…" : "Loading…" });
-    const enabled = commandExists(this.app, "daily-notes");
-    const open = cardAction(card, enabled ? (isChinese() ? "打开今日日记" : "Open today's note") : (isChinese() ? "请启用日记核心插件" : "Enable Daily notes"),
+    // Without the core plugin, the action leads to where it can be turned on instead of a disabled button.
+    if (commandExists(this.app, "daily-notes")) cardAction(card, isChinese() ? "打开今日日记" : "Open today's note",
       () => void openTodayNote(this.app, this.app.workspace.getLeaf("tab")).catch((error: unknown) => new Notice(error instanceof Error ? error.message : String(error))), "arrow-up-right");
-    open.disabled = !enabled;
+    else cardAction(card, isChinese() ? "启用日记核心插件" : "Turn on Daily notes", () => {
+      const setting = (this.app as unknown as { setting?: { open?(): void; openTabById?(id: string): void } }).setting;
+      setting?.open?.(); setting?.openTabById?.("plugins");
+    }, "power", true);
     void todayPath(this.app).then(async (path) => {
       const file = this.app.vault.getAbstractFileByPath(path);
       const lines = file instanceof TFile ? dailyExcerpt(await this.app.vault.cachedRead(file), moduleOptions(this.plugin.settings, "daily-preview", pageId).limit) : [];
@@ -1010,6 +1018,7 @@ export class HomeView extends ItemView {
     if (this.plugin.settings.reviewFolder) card.createDiv({ cls: "qh-native-scope", text: this.plugin.settings.reviewFolder });
     if (!candidates.length) {
       card.createDiv({ cls: "qh-card-empty", text: isChinese() ? "所选文件夹里没有可回顾的笔记" : "No notes in this folder" });
+      cardAction(card, isChinese() ? "更换范围" : "Change folder", () => new ModuleOptionsModal(this.plugin, currentPage(this.plugin.settings).id, "review-note", isChinese() ? "回顾一篇" : "Review a note").open(), "folder", true);
       return;
     }
     const list = card.createDiv({ cls: "qh-list" });
@@ -1035,7 +1044,14 @@ export class HomeView extends ItemView {
     const path = this.plugin.settings.captureInboxPath;
     const file = this.app.vault.getAbstractFileByPath(path);
     const body = card.createDiv({ cls: "qh-native-preview" });
-    if (!(file instanceof TFile)) { body.createDiv({ cls: "qh-card-empty", text: isChinese() ? "还没有收件箱笔记" : "No Inbox note yet" }); return; }
+    if (!(file instanceof TFile)) {
+      body.createDiv({ cls: "qh-card-empty", text: isChinese() ? `还没有收件箱笔记（${path}）。用快速记录或搜索框 ⇧↵ 记下的内容会出现在这里。` : `No Inbox note yet (${path}). Captures from Quick capture or Shift+Enter in search appear here.` });
+      cardAction(card, isChinese() ? "创建收件箱" : "Create Inbox", () => void (async () => {
+        await ensureParent(this.app, path);
+        if (!this.app.vault.getAbstractFileByPath(path)) await this.app.vault.create(path, "");
+      })().catch((error: unknown) => new Notice(error instanceof Error ? error.message : String(error))), "plus", true);
+      return;
+    }
     body.createDiv({ cls: "qh-card-empty", text: isChinese() ? "正在读取…" : "Loading…" });
     void this.app.vault.cachedRead(file).then((markdown) => {
       if (!card.isConnected) return;
