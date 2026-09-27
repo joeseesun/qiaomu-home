@@ -29,7 +29,7 @@ export function parseSearch(json: unknown): GithubItem[] {
 
 export const GITHUB_QUERIES = {
   reviews: "is:open is:pr review-requested:@me archived:false",
-  assigned: "is:open assignee:@me archived:false",
+  assigned: "is:open is:issue assignee:@me archived:false",
   mine: "is:open is:pr author:@me archived:false",
 } as const;
 
@@ -46,7 +46,15 @@ async function api(path: string, auth: string): Promise<unknown> {
     headers: { Authorization: `Bearer ${auth}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" } });
   if (response.status === 401) throw new Error(L("GitHub 令牌无效或已过期，请重新连接", "GitHub token is invalid or expired; reconnect"));
   if (response.status === 403) throw new Error(L("GitHub 请求过于频繁或权限不足，稍后再试", "GitHub rate limit or missing permission; try later"));
-  if (response.status < 200 || response.status >= 300) throw new Error(`GitHub HTTP ${response.status}`);
+  if (response.status < 200 || response.status >= 300) {
+    const body = response.json as { message?: unknown; errors?: unknown };
+    const details = Array.isArray(body?.errors)
+      ? body.errors.map(error => error && typeof error === "object" ? (error as { message?: unknown }).message : undefined)
+        .filter((message): message is string => typeof message === "string").join("; ")
+      : "";
+    const message = details || (typeof body?.message === "string" ? body.message : "");
+    throw new Error(`GitHub HTTP ${response.status} (${path})${message ? `: ${message}` : ""}`);
+  }
   return response.json;
 }
 /** At most one request set per five minutes, shared by every Home tab. */
