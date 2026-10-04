@@ -141,7 +141,7 @@ Home 独立可用。装上相应的乔木插件后，主页还能显示它们的
 - **无需账号，没有遥测。** 设置保存在本库插件数据中，待办和快速记录写入 Markdown。
 - **搜索在本地执行。** 只有主动调用 Agent 时，问题才交给它按你的配置处理。
 - **外部图片按需加载。** 壁纸来自 `images.unsplash.com`；自选 Unsplash 搜索使用 `api.unsplash.com`，密钥存在 Obsidian 密钥库。关于页二维码来自 `radio.qiaomu.ai`。网址快捷入口的图标从 `icons.duckduckgo.com` 获取，只发送网站域名；改用内置图标后不再请求。
-- **联网卡片需要你先设置。** 天气卡片在你选择城市后才向 Open-Meteo 查询；日程卡片只有填写订阅地址时才请求该地址，本地 .ics 文件不联网。白噪音在本机生成。
+- **联网卡片需要你先设置。** 天气地点支持简称、全称、拼音与国家／地区筛选，中国城市／区县优先使用内置 GeoNames 索引，未命中的名称才向 Open-Meteo 搜索；选择地点后按坐标查询预报；日程卡片只有填写订阅地址时才请求该地址，本地 .ics 文件不联网。白噪音在本机生成。
 - **GitHub 与社区列表按需联网。** 连接 GitHub 后，GitHub 待办卡片用你的令牌请求 `api.github.com`（每 5 分钟最多一次）；「添加内容 → 社区」只在打开该分类时从 `raw.githubusercontent.com` 读取社区组件列表。
 - **插件安装由你决定。** 推荐模块只打开市场或设置入口，不会自动安装、启用其他插件。
 
@@ -213,7 +213,7 @@ The screenshots above are actual desktop UI with sample content, a custom headin
 
 No account or telemetry. Settings stay in the vault's plugin data; tasks and captures remain editable Markdown. Search runs locally. Text is handed to Agent only when you explicitly invoke it, and Agent then follows its own configuration.
 
-After you connect GitHub, the GitHub card calls `api.github.com` with your token (at most every five minutes); the Community category in Add cards fetches its list from `raw.githubusercontent.com` only when opened. The weather card queries Open-Meteo only after you choose a city; the agenda card fetches a subscription URL only if you enter one (local .ics files stay offline). Wallpaper images load from `images.unsplash.com`. Website shortcuts show the site's icon, fetched from `icons.duckduckgo.com` with only the host name; pick a built-in icon to avoid the request. Optional Unsplash search uses `api.unsplash.com` and a key stored in Obsidian SecretStorage. About-page QR images load from `radio.qiaomu.ai` when that page is opened. Recommended plugins are never installed or enabled automatically.
+After you connect GitHub, the GitHub card calls `api.github.com` with your token (at most every five minutes); the Community category in Add cards fetches its list from `raw.githubusercontent.com` only when opened. The weather card searches Chinese city/county names and pinyin locally using bundled GeoNames data, with an optional country/region filter and manual coordinates. Unmatched searches go to Open-Meteo; forecasts use coordinates only after you choose a location; the agenda card fetches a subscription URL only if you enter one (local .ics files stay offline). Wallpaper images load from `images.unsplash.com`. Website shortcuts show the site's icon, fetched from `icons.duckduckgo.com` with only the host name; pick a built-in icon to avoid the request. Optional Unsplash search uses `api.unsplash.com` and a key stored in Obsidian SecretStorage. About-page QR images load from `radio.qiaomu.ai` when that page is opened. Recommended plugins are never installed or enabled automatically.
 
 Desktop behavior has been checked in real Obsidian test vaults. Mobile has not been verified on a physical device. Daily tasks fall back to a fixed task note when the core Daily Notes plugin is disabled. If another plugin manages your startup page or new tabs, configure only one to own that entry point.
 
@@ -224,3 +224,25 @@ Run `npm ci` followed by `npm run check` for lint, tests, type checking, and a p
 Other plugins can integrate through the [Qiaomu Home protocol](docs/qiaomu-home-protocol.md). The plugin is [GPL-3.0-only](LICENSE), with a separate [commercial licensing option](COMMERCIAL-LICENSE.md); standalone protocol files are MIT licensed. Photos follow the Unsplash License and retain photographer attribution.
 
 **[Give your next new tab a home →](https://community.obsidian.md/plugins/qiaomu-home)**
+
+### Weather locations and dashboard metrics
+
+Weather supports short/full Chinese names (温州 / 温州市), pinyin (Wenzhou), a
+country/region filter, and manual WGS84 coordinates. The bundled index contains
+4,497 city/county locations; villages and changing administrative boundaries may
+require online search or manual coordinates. Failed online requests can be retried
+without losing the input. Forecasts include the current temperature, feels-like
+temperature, humidity, wind, eight hourly points, sunrise/sunset and three days.
+The hourly strip can scroll horizontally in narrow cards.
+
+Goal progress, habits and time progress use native SVG rings. Focus keeps its
+existing start/pause/resume workflow with a quieter dial. World clocks retain
+digital times alongside small clock faces; day/night icons describe the time of
+day (06:00–18:00), not astronomical daylight. All existing notes and layouts remain
+the source of truth. Visual inspiration: [Gauge UI](https://www.gauge-ui.dev/).
+
+Location data: © [GeoNames contributors](https://www.geonames.org/),
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), reduced snapshot dated
+2026-10-04. Filtering, aliases, coordinate rounding and deduplication are documented
+in [src/data/README.md](src/data/README.md). Updating the dataset is a development
+step; the plugin never downloads the dataset at startup.

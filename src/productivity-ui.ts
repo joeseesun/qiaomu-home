@@ -1,3 +1,4 @@
+import { renderGauge } from "./gauge";
 import { fillTemplate, templateFileName } from "./quick-tools";
 import { cardAction, fieldRow } from "./card-ui";
 import { renderHabitCard } from "./habits";
@@ -226,6 +227,10 @@ export function renderProductivity(parent: HTMLElement, plugin: QiaomuHomePlugin
     const dial = body.createDiv({ cls: "qh-focus-dial" });
     const svg = dial.createSvg("svg", { attr: { viewBox: "0 0 120 120", "aria-hidden": "true" } });
     svg.createSvg("circle", { cls: "qh-focus-track", attr: { cx: "60", cy: "60", r: "52" } });
+    for (let index = 0; index < 12; index++) {
+      const angle = index * Math.PI / 6;
+      svg.createSvg("line", { cls: "qh-gauge-tick", attr: { x1: String(60 + Math.sin(angle) * 43), y1: String(60 - Math.cos(angle) * 43), x2: String(60 + Math.sin(angle) * 46), y2: String(60 - Math.cos(angle) * 46) } });
+    }
     svg.createSvg("circle", { cls: "qh-focus-arc", attr: { cx: "60", cy: "60", r: "52", "data-focus-arc": "true", transform: "rotate(-90 60 60)" } });
     const center = dial.createDiv({ cls: "qh-focus-center" });
     const clock = center.createDiv({ cls: "qh-focus-clock" }); clock.dataset.focusClock = "true";
@@ -335,10 +340,9 @@ export function renderProductivity(parent: HTMLElement, plugin: QiaomuHomePlugin
         const progress = taskProgress(content);
         if (!progress.total) message(L("这篇笔记没有 Markdown 任务", "This note has no Markdown tasks"));
         else {
-          body.createDiv({ cls: "qh-native-count", text: `${progress.done} / ${progress.total}` });
-          const bar = body.createEl("progress", { cls: "qh-goal-bar" }); bar.max = progress.total; bar.value = progress.done;
-          bar.setAttr("aria-labelledby", `${pageId}-goal-${crypto.randomUUID()}`);
-          const label = body.createSpan({ cls: "qh-sr-only", text: L("目标完成进度", "Goal completion") }); label.id = bar.getAttr("aria-labelledby")!;
+          const metric = body.createDiv({ cls: "qh-goal-gauge" });
+          renderGauge(metric, progress.done / progress.total, L("目标完成进度", "Goal completion"));
+          metric.createDiv({ cls: "qh-native-scope", text: L("完成 {done} / {length}", "{done} of {length} done", { done: progress.done, length: progress.total }) });
         }
       } else {
         const lines = id === "daily-timeline" ? dailyExcerpt(content, 10000).filter(line => /(?:^|\s)(?:[01]\d|2[0-3]):[0-5]\d(?:\s|$)/.test(line)).slice(-options.limit) : dailyExcerpt(content, options.limit);
