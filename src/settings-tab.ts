@@ -1,11 +1,11 @@
 import { folderDropdown } from "./extra-ui";
-import { AbstractInputSuggest, FuzzySuggestModal, PluginSettingTab, Notice, SecretComponent, Setting, TFile, setIcon, type App } from "obsidian";
+import { FuzzySuggestModal, PluginSettingTab, Notice, SecretComponent, Setting, setIcon, type App } from "obsidian";
 import { listCommands } from "./ecosystem";
 import { L, LANGUAGES, setLanguage, t, type LanguagePreference } from "./i18n";
 import type QiaomuHomePlugin from "./main";
 import { PAGE_TEMPLATES, currentPage, type Headline, type PageTemplate, type WallpaperRotation, type WallpaperSource } from "./settings";
 import { collectActions } from "./view";
-import { isImagePath } from "./wallpaper/wallpaper";
+import { renderLocalWallpaper } from "./wallpaper/local-settings";
 
 
 
@@ -17,20 +17,6 @@ function unsplashError(code: string): string {
   if (code === "unsplash-auth") return L("Access Key 无效，暂时使用内置图库。", "The Access Key was rejected; using the built-in gallery.");
   if (code === "unsplash-empty") return L("这个关键词没有找到照片，换个词试试。", "No photos match these keywords.");
   return L("暂时连不上 Unsplash，已使用内置图库。", "Unsplash is unreachable; using the built-in gallery.");
-}
-
-class ImageSuggest extends AbstractInputSuggest<TFile> {
-  constructor(app: App, private input: HTMLInputElement, private onPick: (path: string) => void) { super(app, input); }
-  protected getSuggestions(query: string): TFile[] {
-    const q = query.toLowerCase();
-    return this.app.vault.getFiles().filter((file) => isImagePath(file.path) && file.path.toLowerCase().includes(q)).slice(0, 30);
-  }
-  renderSuggestion(file: TFile, el: HTMLElement): void { el.setText(file.path); }
-  selectSuggestion(file: TFile): void {
-    this.input.value = file.path;
-    this.onPick(file.path);
-    this.close();
-  }
 }
 
 class CommandPicker extends FuzzySuggestModal<{ id: string; name: string; icon?: string }> {
@@ -57,6 +43,9 @@ import { renderTodoPreferences } from "./todo-ui";
 
 type SettingsSection = "home" | "appearance" | "capture" | "about";
 export class HomeSettingTab extends PluginSettingTab {
+  private localWallpaperRefresh: (() => void) | null = null;
+  refreshWallpaper(): void { this.localWallpaperRefresh?.(); }
+  hide(): void { this.localWallpaperRefresh = null; }
   private activeSection: SettingsSection = "home";
   private readonly instance = `qh-settings-${crypto.randomUUID()}`;
   constructor(app: App, private plugin: QiaomuHomePlugin) { super(app, plugin); }
@@ -66,6 +55,7 @@ export class HomeSettingTab extends PluginSettingTab {
   }
   display(): void { this.renderSettings(); }
   private renderSettings(): void {
+    this.localWallpaperRefresh = null;
     const root=this.containerEl;
     root.empty();root.addClass("qh-settings", "qh-ui");
     const header=root.createDiv({cls:"qh-settings-header"});
@@ -205,18 +195,10 @@ export class HomeSettingTab extends PluginSettingTab {
     }
 
     if (wall.source === "local") {
-      new Setting(containerEl)
-        .setName(L("图片路径", "Image path"))
-        .setDesc(L("输入库中的图片路径，可从建议中选择。", "Type a vault image path or pick a suggestion."))
-        .addText((text) => {
-          text.setPlaceholder("Attachments/wallpaper.jpg").setValue(wall.localPath);
-          const apply = async (path: string) => { wall.localPath = path.trim(); await save(false); this.plugin.eachView((view) => void view.renderPhoto()); };
-          new ImageSuggest(this.app, text.inputEl, (path) => void apply(path));
-          text.inputEl.addEventListener("blur", () => void apply(text.getValue()));
-        });
+      this.localWallpaperRefresh = renderLocalWallpaper(containerEl, this.plugin, () => this.renderSettings());
     }
 
-    if (this.plugin.wallpaper.canRotate()) {
+    if (wall.source !== "local" && this.plugin.wallpaper.canRotate()) {
       new Setting(containerEl)
         .setName(L("更换频率", "Change"))
         .addDropdown((dropdown) => dropdown

@@ -1463,3 +1463,8 @@ body:has(.workspace-leaf.mod-active > .workspace-leaf-content:is(
 .qh-ui .qh-weather-manual { margin: 12px 0; }
 .qh-ui .qh-weather-manual > summary { cursor: pointer; padding: 8px 0; font-size: var(--font-ui-small); }
 @media (prefers-reduced-motion: reduce) { .qh-ui .qh-focus-arc { transition: none; } }
+
+/* Local wallpaper status uses the existing settings surface. */
+.qh-wallpaper-preview { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.qh-wallpaper-thumb { width: 64px; height: 40px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
+.qh-wallpaper-thumb[hidden], .qh-settings .setting-item[hidden] { display: none; }

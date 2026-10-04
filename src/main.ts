@@ -1,6 +1,6 @@
 import { HomeTaskIndex } from "./task-index";
 import { AmbientPlayer } from "./ambient";
-import { moment, Notice, Plugin, type WorkspaceLeaf } from "obsidian";
+import { moment, Notice, Plugin, type TAbstractFile, type WorkspaceLeaf } from "obsidian";
 import { appendToDaily } from "./today";
 import { L, setLanguage, t, type LanguagePreference } from "./i18n";
 import { renameShortcutTargets } from "./shortcuts";
@@ -58,6 +58,15 @@ export default class QiaomuHomePlugin extends Plugin {
       this.settings.recentHidden = this.settings.recentHidden.filter((path) => path !== file.path);
       void this.saveSettings({ rerender: false });
     }));
+    const refreshWallpaper = (file?: TAbstractFile) => {
+      const wall = this.settings.wallpaper;
+      if (wall.source !== "local") return;
+      const target = wall.localMode === "folder" ? wall.localFolder : wall.localPath;
+      if (file && target !== "/" && file.path !== target && !file.path.startsWith(`${target}/`) && !target.startsWith(`${file.path}/`)) return;
+      void this.wallpaper.refreshLocal().then(() => this.homeSettingTab?.refreshWallpaper());
+    };
+    this.registerEvent(this.app.vault.on("create", refreshWallpaper));
+    this.registerEvent(this.app.vault.on("delete", refreshWallpaper));
     this.registerEvent(this.app.vault.on("rename", (file, oldPath) => {
       let todoRenamed = false;
       const renamed = (path: string) => path === oldPath || path.startsWith(`${oldPath}/`) ? file.path + path.slice(oldPath.length) : path;
@@ -70,6 +79,15 @@ export default class QiaomuHomePlugin extends Plugin {
         const next = this.settings[key].map(renamed);
         if (next.some((path, index) => path !== this.settings[key][index])) { this.settings[key] = next; todoRenamed = true; }
       }
+      const wall = this.settings.wallpaper;
+      let wallpaperRenamed = false;
+      for (const key of ["localPath", "localFolder", "localCurrent"] as const) {
+        if (wall[key] && renamed(wall[key]) !== wall[key]) { wall[key] = renamed(wall[key]); todoRenamed = true; wallpaperRenamed = true; }
+      }
+      const localSeen = wall.localSeen.map(renamed);
+      if (localSeen.some((path, index) => path !== wall.localSeen[index])) { wall.localSeen = localSeen; todoRenamed = true; }
+      if (wallpaperRenamed) wall.localSelectionKey = JSON.stringify([wall.localFolder, wall.localRecursive]);
+      refreshWallpaper();
       const seen = Object.entries(this.settings.reviewSeen);
       if (seen.some(([path]) => renamed(path) !== path)) { this.settings.reviewSeen = Object.fromEntries(seen.map(([path, day]) => [renamed(path), day])); todoRenamed = true; }
       if (this.settings.todoPath === oldPath || this.settings.todoPath.startsWith(`${oldPath}/`)) {
