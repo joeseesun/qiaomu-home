@@ -1468,3 +1468,18 @@ body:has(.workspace-leaf.mod-active > .workspace-leaf-content:is(
 .qh-wallpaper-preview { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .qh-wallpaper-thumb { width: 64px; height: 40px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
 .qh-wallpaper-thumb[hidden], .qh-settings .setting-item[hidden] { display: none; }
+
+/* Native pane dividers: the tab strip follows the host; content follows its panel. */
+.workspace-leaf-resize-handle.qiaomu-pane-divider {
+  --qiaomu-divider-current: var(--qiaomu-divider-color);
+  --qiaomu-divider-host: var(--divider-color);
+  --qiaomu-divider-paint: linear-gradient(var(--qiaomu-divider-direction), var(--qiaomu-divider-host) 0px, var(--qiaomu-divider-host) var(--qiaomu-divider-start), var(--qiaomu-divider-current) var(--qiaomu-divider-start), var(--qiaomu-divider-current) var(--qiaomu-divider-end), var(--qiaomu-divider-host) var(--qiaomu-divider-end));
+  border-image-source: var(--qiaomu-divider-paint);
+  border-image-slice: 1;
+}
+.workspace-leaf-resize-handle.qiaomu-pane-divider:is(:hover,:active,.is-active,.mobile-tap) {
+  --qiaomu-divider-current: var(--qiaomu-divider-hover);
+  --qiaomu-divider-host: var(--divider-color-hover);
+  background-color: transparent;
+  background-image: var(--qiaomu-divider-paint);
+}
