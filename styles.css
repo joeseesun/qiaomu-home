@@ -361,6 +361,9 @@
   margin-top: 14px;
 }
 
+.qh-grid.qh-masonry { grid-auto-rows: 1px; row-gap: 0; }
+.qh-masonry > .qh-card, .qh-masonry > .qh-slot > .qh-card { align-self: start; }
+
 .qh-slot {
   display: contents;
 }
