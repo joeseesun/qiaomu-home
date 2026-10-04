@@ -78,6 +78,13 @@ export interface HomeSettings {
     unsplashSecret: string;
     query: string;
     localPath: string;
+    localMode: "folder" | "file";
+    localFolder: string;
+    localRecursive: boolean;
+    localCurrent: string;
+    localSeen: string[];
+    localChosenOn: string;
+    localSelectionKey: string;
     current: Photo | null;
     /** Local day (YYYY-MM-DD) the current photo was chosen, for daily rotation. */
     chosenOn: string;
@@ -182,6 +189,13 @@ export const DEFAULT_SETTINGS: HomeSettings = {
     unsplashSecret: "",
     query: "nature landscape",
     localPath: "",
+    localMode: "folder",
+    localFolder: "",
+    localRecursive: false,
+    localCurrent: "",
+    localSeen: [],
+    localChosenOn: "",
+    localSelectionKey: "",
     current: null,
     chosenOn: "",
   },
@@ -376,6 +390,13 @@ export function normalizeSettings(saved: unknown): HomeSettings {
       unsplashSecret: text(wall.unsplashSecret),
       query: text(wall.query, defaults.wallpaper.query),
       localPath: text(wall.localPath),
+      localMode: pick(wall.localMode, ["folder", "file"], text(wall.localPath) ? "file" : "folder"),
+      localFolder: text(wall.localFolder),
+      localRecursive: wall.localRecursive === true,
+      localCurrent: text(wall.localCurrent),
+      localSeen: [...new Set(strings(wall.localSeen))],
+      localChosenOn: text(wall.localChosenOn),
+      localSelectionKey: text(wall.localSelectionKey),
       current: photo(wall.current),
       chosenOn: text(wall.chosenOn),
     },

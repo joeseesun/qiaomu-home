@@ -363,7 +363,7 @@ export class HomeView extends ItemView {
     menu.addSeparator();
     const sources: Array<[typeof wall.source, string]> = [["curated", t("wallpaper.curated")], ["none", t("wallpaper.none")]];
     if (wall.unsplashSecret) sources.splice(1, 0, ["unsplash", t("wallpaper.unsplash")]);
-    if (wall.localPath) sources.splice(-1, 0, ["local", t("wallpaper.local")]);
+    if (wall.localPath || wall.localFolder) sources.splice(-1, 0, ["local", t("wallpaper.local")]);
     for (const [source, label] of sources) {
       menu.addItem((item) => item.setTitle(label).setChecked(wall.source === source).onClick(async () => {
         wall.source = source;

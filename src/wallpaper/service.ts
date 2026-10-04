@@ -1,3 +1,6 @@
+import { Notice } from "obsidian";
+import { L } from "../i18n";
+import { folderImages, nextLocal } from "./local";
 import type { Photo } from "../settings";
 import { localDay } from "../settings";
 import type QiaomuHomePlugin from "../main";
@@ -15,14 +18,16 @@ export class WallpaperService {
   readonly cache: WallpaperCache;
   private choosing: Promise<void> | null = null;
   private lastError = "";
+  private localChoosing: Promise<void> | null = null;
 
   constructor(private plugin: QiaomuHomePlugin) {
     this.cache = new WallpaperCache(plugin.app, `${plugin.manifest.dir ?? `${plugin.app.vault.configDir}/plugins/${plugin.manifest.id}`}/wallpapers`);
   }
 
   canRotate(): boolean {
-    const source = this.plugin.settings.wallpaper.source;
-    return source === "curated" || source === "unsplash";
+    const wall = this.plugin.settings.wallpaper;
+    return wall.source === "curated" || wall.source === "unsplash"
+      || wall.source === "local" && wall.localMode === "folder" && this.localFiles().length > 1;
   }
 
   /** The reason the last Unsplash request failed, for the settings page. Empty when it worked. */
@@ -31,6 +36,7 @@ export class WallpaperService {
   /** Called whenever a Home page opens: rotates the photo when the rotation rule says it is time. */
   async prepareForView(): Promise<void> {
     const wall = this.plugin.settings.wallpaper;
+    if (wall.source === "local") { await this.prepareLocal(true); return; }
     if (!this.canRotate()) return;
     const due = !wall.current
       || (wall.source === "curated") !== wall.current.id.startsWith("curated:")
@@ -41,7 +47,56 @@ export class WallpaperService {
 
   /** User asked for another photo. */
   async next(): Promise<void> {
-    await this.choose();
+    if (this.plugin.settings.wallpaper.source === "local") await this.prepareLocal(false, true);
+    else if (this.canRotate()) await this.choose();
+  }
+
+  localFiles() {
+    const wall = this.plugin.settings.wallpaper;
+    return wall.localFolder ? folderImages(this.plugin.app, wall.localFolder, wall.localRecursive) : [];
+  }
+
+  /** Vault events/configuration changes repair a missing choice without triggering open rotation. */
+  async refreshLocal(): Promise<void> {
+    await this.prepareLocal(false);
+    if (this.plugin.settings.wallpaper.source === "local") this.plugin.eachView(view => void view.renderPhoto());
+  }
+
+  private async prepareLocal(open: boolean, force = false): Promise<void> {
+    if (this.localChoosing) {
+      await this.localChoosing;
+      if (open || force) return;
+    }
+    this.localChoosing = this.pickLocal(open, force).finally(() => { this.localChoosing = null; });
+    await this.localChoosing;
+  }
+
+  private async pickLocal(open: boolean, force: boolean): Promise<void> {
+    const wall = this.plugin.settings.wallpaper;
+    if (wall.source !== "local" || wall.localMode !== "folder") return;
+    const paths = this.localFiles().map(file => file.path);
+    const key = JSON.stringify([wall.localFolder, wall.localRecursive]);
+    const changed = wall.localSelectionKey !== key;
+    const due = changed || (paths.length ? !paths.includes(wall.localCurrent) : !!wall.localCurrent) || force && paths.length > 1
+      || open && paths.length > 1 && (wall.rotation === "open" || wall.rotation === "daily" && wall.localChosenOn !== localDay());
+    const seen = wall.localSeen.filter(path => paths.includes(path));
+    if (!due && seen.length === wall.localSeen.length) return;
+    const before = { localCurrent: wall.localCurrent, localSeen: wall.localSeen, localChosenOn: wall.localChosenOn, localSelectionKey: wall.localSelectionKey };
+    if (due) {
+      const next = nextLocal(paths, wall.localCurrent, changed ? [] : seen);
+      wall.localCurrent = next.current;
+      wall.localSeen = next.seen;
+      wall.localChosenOn = next.current ? localDay() : "";
+      wall.localSelectionKey = key;
+    } else wall.localSeen = seen;
+    try {
+      await this.plugin.saveSettings({ rerender: false });
+      this.plugin.eachView(view => void view.renderPhoto());
+    }
+    catch {
+      Object.assign(wall, before);
+      new Notice(L("壁纸设置保存失败，请重试。", "Could not save wallpaper settings. Try again."));
+    }
   }
 
   private choose(): Promise<void> {
@@ -85,7 +140,8 @@ export class WallpaperService {
     const wall = this.plugin.settings.wallpaper;
     if (wall.source === "none") return null;
     if (wall.source === "local") {
-      const url = wall.localPath ? localImage(this.plugin.app, wall.localPath) : null;
+      const path = wall.localMode === "file" ? wall.localPath : wall.localCurrent;
+      const url = path ? localImage(this.plugin.app, path) : null;
       return url ? { url } : null;
     }
     const photo = wall.current ?? curatedPhotos()[0];

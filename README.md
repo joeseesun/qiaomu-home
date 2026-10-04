@@ -101,6 +101,8 @@ A calm start page for your notes, daily tasks, and everything you want to return
 
 顶部可以显示 **时间与问候**，或换成 **自定义文本**。设置和弹窗采用克制的黑白灰控件，支持浅色与深色外观。
 
+库内壁纸支持单张图片或图片文件夹。选择文件夹后，可按每天一张、每次打开或手动更换轮换；一轮内不重复，也可包含子文件夹。新增、删除和重命名图片后自动更新。
+
 [查看摄影作品与来源 →](docs/wallpaper-credits.md)
 
 ### 刚开始用 Obsidian？少走一点弯路
@@ -202,7 +204,7 @@ Requires **Obsidian 1.11.4 or newer**. For manual installation, download `main.j
 | Daily tasks | Add and complete plain Markdown tasks in today's daily note, or a fixed note. Move unfinished tasks forward manually; automatic carry-forward is optional and off by default. |
 | Personal shortcuts | Open a note, folder, website, or today's daily note. Choose names and icons and reorder your entries. |
 | Search and capture | Find local notes by name, alias, or path. `Shift+Enter` appends text to today’s daily note using your Daily notes folder, date format, and template. |
-| Appearance | Choose from 50 credited Unsplash wallpapers, use a local image, or configure Unsplash search. Show a clock and greeting or your own text. |
+| Appearance | Choose from 50 credited Unsplash wallpapers, use a fixed local image or shuffle images from a vault folder, or configure Unsplash search. Show a clock and greeting or your own text. |
 | Starter plugins | Discover 20 useful community plugins through short explanations. Show three by default, expand for more, and open official details before installing. |
 | Nine languages | Simplified Chinese, English, Japanese, Korean, French, German, Spanish, Portuguese and Russian. Follows Obsidian by default; override it under **Settings → Appearance → Language**. Names you gave pages and shortcuts are never changed. |
 | Optional integrations | Continue books, RSS articles, radio, and conversations through Qiaomu Reader, RSS, Radio, and Agent. Home also works on its own. |
