@@ -1,3 +1,4 @@
+import { watchPaneDividers } from "./pane-dividers";
 import { HomeTaskIndex } from "./task-index";
 import { AmbientPlayer } from "./ambient";
 import { moment, Notice, Plugin, type TAbstractFile, type WorkspaceLeaf } from "obsidian";
@@ -43,6 +44,7 @@ export default class QiaomuHomePlugin extends Plugin {
   private claiming = new WeakSet<WorkspaceLeaf>();
 
   async onload(): Promise<void> {
+    watchPaneDividers(this);
     const data: unknown = await this.loadData();
     // The language decides default page and shortcut names, so it is set before settings are normalized.
     setLanguage((data as { language?: LanguagePreference } | null)?.language ?? "auto");
