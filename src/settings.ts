@@ -2,6 +2,7 @@ import { DISCOVERY_MODULES, parseSearchTemplates, type SearchTemplate } from "./
 import { EXTRA_MODULES } from "./extra-catalog";
 import { INTEGRATIONS } from "./integration-catalog";
 import { calendarUrl, clockMinutes, validZone, type WeatherLocation, type ZoneEntry } from "./extra-data";
+import { WEATHER_COUNTRIES } from "./weather-location";
 import { PRODUCTIVITY_MODULES } from "./productivity-catalog";
 import { normalizeFocus, type FocusSession } from "./productivity-data";
 import { L, isChinese, isLanguage, type LanguagePreference } from "./i18n";
@@ -40,6 +41,7 @@ export interface ModuleOptions {
   start?: string; end?: string;
   location?: WeatherLocation;
   unit?: "c" | "f";
+  countryCode?: string;
   /** Recently modified: leave out daily notes and the notes Home writes to. Unset means true. */
   excludeDaily?: boolean;
   /** Due today: also list overdue tasks. Unset follows whether an Overdue card is on the page. */
@@ -306,6 +308,7 @@ function normalizeModules(value: unknown): Record<string, ModuleOptions> {
       ...(candidate.location && typeof candidate.location.name === "string" && Math.abs(Number(candidate.location.latitude)) <= 90 && Math.abs(Number(candidate.location.longitude)) <= 180
         && Number.isFinite(candidate.location.latitude) && Number.isFinite(candidate.location.longitude)
         ? { location: { name: candidate.location.name.slice(0, 80), latitude: candidate.location.latitude, longitude: candidate.location.longitude } } : {}),
+      ...(typeof candidate.countryCode === "string" && (candidate.countryCode === "" || WEATHER_COUNTRIES.includes(candidate.countryCode)) ? { countryCode: candidate.countryCode } : {}),
       ...(candidate.unit === "c" || candidate.unit === "f" ? { unit: candidate.unit } : {}),
       ...(typeof candidate.excludeDaily === "boolean" ? { excludeDaily: candidate.excludeDaily } : {}),
       ...(typeof candidate.includeOverdue === "boolean" ? { includeOverdue: candidate.includeOverdue } : {}),

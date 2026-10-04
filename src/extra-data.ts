@@ -226,31 +226,45 @@ export function weatherLabel(code: number): { text: string; icon: string } {
 export function forecastUrl(location: WeatherLocation, unit: "c" | "f"): string {
   const params = new URLSearchParams({
     latitude: location.latitude.toFixed(4), longitude: location.longitude.toFixed(4),
-    current: "temperature_2m,apparent_temperature,weather_code", daily: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max",
+    current: "temperature_2m,apparent_temperature,weather_code,relative_humidity_2m,wind_speed_10m", daily: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset",
+    hourly: "temperature_2m,weather_code,precipitation_probability",
     timezone: "auto", forecast_days: "3", ...(unit === "f" ? { temperature_unit: "fahrenheit" } : {}),
   });
   return `https://api.open-meteo.com/v1/forecast?${params.toString()}`;
 }
-export interface Forecast { current: { temperature: number; feels: number; code: number }; days: Array<{ day: string; code: number; max: number; min: number; rain: number | null }> }
+export interface Forecast {
+  current: { temperature: number; feels: number; code: number; humidity: number | null; wind: number | null };
+  days: Array<{ day: string; code: number; max: number; min: number; rain: number | null; sunrise: string | null; sunset: string | null }>;
+  hours: Array<{ time: string; temperature: number; code: number; rain: number | null }>;
+}
 export function parseForecast(json: unknown): Forecast {
-  const data = json as { current?: Record<string, unknown>; daily?: Record<string, unknown[]> };
+  const data = json as { current?: Record<string, unknown>; daily?: Record<string, unknown[]>; hourly?: Record<string, unknown[]> };
   const number = (value: unknown) => { if (typeof value !== "number" || !Number.isFinite(value)) throw new Error("Invalid forecast"); return value; };
-  const current = { temperature: number(data.current?.temperature_2m), feels: number(data.current?.apparent_temperature), code: number(data.current?.weather_code) };
+  const optional = (value: unknown) => typeof value === "number" && Number.isFinite(value) ? value : null;
+  const current = { humidity: optional(data.current?.relative_humidity_2m), wind: optional(data.current?.wind_speed_10m), temperature: number(data.current?.temperature_2m), feels: number(data.current?.apparent_temperature), code: number(data.current?.weather_code) };
   const daily = data.daily ?? {};
   const days = (daily.time ?? []).slice(0, 3).map((day, index) => ({
     day: String(day), code: number(daily.weather_code?.[index]), max: number(daily.temperature_2m_max?.[index]), min: number(daily.temperature_2m_min?.[index]),
-    rain: typeof daily.precipitation_probability_max?.[index] === "number" ? daily.precipitation_probability_max[index] : null,
+    rain: optional(daily.precipitation_probability_max?.[index]),
+    sunrise: typeof daily.sunrise?.[index] === "string" ? daily.sunrise[index] : null, sunset: typeof daily.sunset?.[index] === "string" ? daily.sunset[index] : null,
   }));
-  return { current, days };
+  const hourly = data.hourly ?? {};
+  const currentHour = typeof data.current?.time === "string" ? data.current.time.slice(0, 13) : "";
+  const hours = currentHour ? (hourly.time ?? []).flatMap((time, index) => {
+    const temperature = optional(hourly.temperature_2m?.[index]), code = optional(hourly.weather_code?.[index]);
+    if (typeof time !== "string" || time.slice(0, 13) < currentHour || temperature === null || code === null) return [];
+    return [{ time, temperature, code, rain: optional(hourly.precipitation_probability?.[index]) }];
+  }).slice(0, 8) : [];
+  return { current, days, hours };
 }
-export function parseGeocoding(json: unknown): Array<WeatherLocation & { detail: string }> {
+export function parseGeocoding(json: unknown): Array<WeatherLocation & { detail: string; countryCode?: string }> {
   const results = (json as { results?: unknown[] })?.results;
   if (!Array.isArray(results)) return [];
   return results.flatMap(item => {
     const place = item as Record<string, unknown>;
-    if (typeof place.name !== "string" || typeof place.latitude !== "number" || typeof place.longitude !== "number") return [];
-    return [{ name: place.name, latitude: place.latitude, longitude: place.longitude, detail: [place.admin1, place.country].filter(value => typeof value === "string").join(", ") }];
-  }).slice(0, 6);
+    if (typeof place.name !== "string" || typeof place.latitude !== "number" || typeof place.longitude !== "number" || !Number.isFinite(place.latitude) || !Number.isFinite(place.longitude) || Math.abs(place.latitude) > 90 || Math.abs(place.longitude) > 180) return [];
+    return [{ name: place.name, latitude: place.latitude, longitude: place.longitude, countryCode: typeof place.country_code === "string" ? place.country_code : undefined, detail: [...new Set([place.admin2, place.admin1, place.country].filter(value => typeof value === "string" && value))].join(" · ") }];
+  }).slice(0, 12);
 }
 
 // Calendar (.ics) -------------------------------------------------------------

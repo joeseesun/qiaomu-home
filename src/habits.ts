@@ -1,3 +1,4 @@
+import { renderGauge } from "./gauge";
 import { isComposingKey } from "./input-ui";
 import { openFromHome } from "./open";
 import { moment, normalizePath, Notice, Setting, TFile, setIcon, type App } from "obsidian";
@@ -118,9 +119,9 @@ export function renderHabitCard(body: HTMLElement, card: HTMLElement, plugin: Qi
     const paintSummary = () => {
       summary.empty();
       const done = specs.filter(doneToday).length;
-      summary.createSpan({ text: done === specs.length ? L("今天全部完成 🎉", "All done today 🎉") : L("完成 {done} / {length}", "{done} of {length} done", { done, length: specs.length }) });
-      const bar = summary.createEl("progress", { cls: "qh-goal-bar" }); bar.max = specs.length; bar.value = done;
-      bar.setAttr("aria-label", L("已完成 {done} 项", "{done} done", { done }));
+      const metric = summary.createDiv({ cls: "qh-habit-gauge" });
+      renderGauge(metric, done / specs.length, L("已完成 {done} 项", "{done} done", { done }), `${done}/${specs.length}`, true);
+      summary.createSpan({ text: done === specs.length ? L("今天全部完成", "All done today") : L("完成 {done} / {length}", "{done} of {length} done", { done, length: specs.length }) });
     };
     // Last seven days, oldest first; today reflects taps made on the card.
     const paintWeek = () => {

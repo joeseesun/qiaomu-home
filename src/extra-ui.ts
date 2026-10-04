@@ -1,3 +1,5 @@
+import { renderGauge, renderClockFace } from "./gauge";
+import { coordinateLocation, searchWeatherPlaces, WEATHER_COUNTRIES } from "./weather-location";
 import { isComposingKey } from "./input-ui";
 import { openFromHome } from "./open";
 import { FuzzySuggestModal, moment, normalizePath, Notice, requestUrl, Setting, TFile, TFolder, setIcon, setTooltip } from "obsidian";
@@ -8,7 +10,7 @@ import type { NoiseKind } from "./ambient";
 import { EXTRA_MODULES, type ExtraId } from "./extra-catalog";
 import {
   BUILTIN_QUOTES, activityDays, activityStreak, agenda, calendarUrl, clockMinutes, dailyIndex, defaultZones, forecastUrl, heatLevel, parseFlashcards,
-  parseForecast, parseGeocoding, parseIcs, parseQuotes, parseSnippets, parseVideoUrl, parseZones, timeProgress, videoNote, weatherLabel,
+  parseForecast, parseIcs, parseQuotes, parseSnippets, parseVideoUrl, parseZones, timeProgress, videoNote, weatherLabel,
   zoneLines, zoneTime, type Forecast,
 } from "./extra-data";
 import { L, currentLanguage, dateLocale, isChinese, t } from "./i18n";
@@ -193,12 +195,11 @@ export function renderExtra(parent: HTMLElement, plugin: QiaomuHomePlugin, id: E
     minuteTick(() => {
       body.empty();
       const progress = timeProgress(new Date(), start, end);
+      const rings = body.createDiv({ cls: "qh-time-gauges" });
       const row = (label: string, value: number, note?: string) => {
-        const line = body.createDiv({ cls: "qh-progress-row" });
-        line.createSpan({ cls: "qh-progress-label", text: label });
-        const bar = line.createEl("progress", { cls: "qh-goal-bar" }); bar.max = 1000; bar.value = Math.round(value * 1000);
-        bar.setAttr("aria-label", `${label} ${Math.floor(value * 100)}%`);
-        line.createSpan({ cls: "qh-progress-value", text: note ?? `${Math.floor(value * 100)}%` });
+        const metric = rings.createDiv({ cls: "qh-time-gauge" });
+        renderGauge(metric, value, label, undefined, true);
+        if (note) metric.createDiv({ cls: "qh-native-scope", text: note });
       };
       if (progress.work !== null) {
         const left = progress.workLeft;
@@ -221,7 +222,13 @@ export function renderExtra(parent: HTMLElement, plugin: QiaomuHomePlugin, id: E
         const row = body.createDiv({ cls: "qh-clock-row" });
         let value: { time: string; offset: number };
         try { value = zoneTime(new Date(), zone.zone); } catch { continue; }
-        row.createSpan({ cls: "qh-clock-label", text: zone.label });
+        renderClockFace(row, value.time);
+        const name = row.createDiv({ cls: "qh-clock-name" });
+        name.createSpan({ cls: "qh-clock-label", text: zone.label });
+        const hour = Number(value.time.slice(0, 2));
+        const dayState = name.createSpan({ cls: "qh-clock-day-state" });
+        setIcon(dayState.createSpan(), hour >= 6 && hour < 18 ? "sun" : "moon");
+        dayState.createSpan({ text: hour >= 6 && hour < 18 ? L("白天", "Daytime") : L("夜间", "Nighttime") });
         row.createSpan({ cls: "qh-clock-offset", text: value.offset > 0 ? L("明天", "Tomorrow") : value.offset < 0 ? L("昨天", "Yesterday") : "" });
         row.createSpan({ cls: "qh-clock-time", text: value.time });
       }
@@ -239,12 +246,38 @@ export function renderExtra(parent: HTMLElement, plugin: QiaomuHomePlugin, id: E
       if (!card.isConnected) return; body.empty();
       const now = weatherLabel(forecast.current.code);
       const top = body.createDiv({ cls: "qh-weather-now" });
-      setIcon(top.createSpan({ cls: "qh-weather-icon" }), now.icon);
-      top.createSpan({ cls: "qh-native-count", text: `${Math.round(forecast.current.temperature)}°` });
-      top.createSpan({ cls: "qh-native-line", text: `${location.name} · ${now.text} · ${L("体感", "feels")} ${Math.round(forecast.current.feels)}°` });
+      const temp = top.createDiv({ cls: "qh-weather-temperature" });
+      temp.createSpan({ cls: "qh-native-count", text: `${Math.round(forecast.current.temperature)}°` });
+      temp.createSpan({ cls: "qh-weather-unit", text: unit === "f" ? "F" : "C" });
+      const overview = top.createDiv({ cls: "qh-weather-overview" });
+      overview.createDiv({ cls: "qh-weather-city", text: location.name });
+      const condition = overview.createDiv({ cls: "qh-weather-condition" });
+      setIcon(condition.createSpan({ cls: "qh-weather-icon" }), now.icon);
+      condition.createSpan({ text: now.text });
+      overview.createDiv({ cls: "qh-native-scope", text: `${L("体感", "feels")} ${Math.round(forecast.current.feels)}°` });
+      const details = body.createDiv({ cls: "qh-weather-details" });
+      if (forecast.current.humidity !== null) details.createSpan({ text: `${L("湿度", "Humidity")} ${Math.round(forecast.current.humidity)}%` });
+      if (forecast.current.wind !== null) details.createSpan({ text: `${L("风速", "Wind speed")} ${Math.round(forecast.current.wind)} km/h` });
+      const first = forecast.days[0];
+      if (first?.sunrise && first.sunset) details.createSpan({ text: `${L("日出／日落", "Sunrise / sunset")} ${first.sunrise.slice(11, 16)} / ${first.sunset.slice(11, 16)}` });
+      if (forecast.hours.length) {
+        const heading = body.createDiv({ cls: "qh-native-scope", text: L("未来八小时", "Next eight hours") });
+        heading.id = `qh-hourly-${crypto.randomUUID()}`;
+        const hours = body.createDiv({ cls: "qh-weather-hours" }); hours.setAttr("role", "list"); hours.setAttr("aria-labelledby", heading.id);
+        for (const hour of forecast.hours) {
+          const item = hours.createDiv({ cls: "qh-weather-hour" }); item.setAttr("role", "listitem");
+          item.createSpan({ cls: "qh-weather-hour-time", text: hour.time.slice(11, 16) });
+          const label = weatherLabel(hour.code);
+          setIcon(item.createSpan({ cls: "qh-weather-icon" }), label.icon);
+          item.createSpan({ cls: "qh-sr-only", text: label.text });
+          item.createSpan({ cls: "qh-weather-temp", text: `${Math.round(hour.temperature)}°` });
+          if (hour.rain !== null) item.createSpan({ cls: "qh-weather-hour-rain", text: `${Math.round(hour.rain)}%` });
+        }
+      }
+      const days = body.createDiv({ cls: "qh-weather-days" });
       forecast.days.forEach((day, index) => {
         const label = weatherLabel(day.code);
-        const row = body.createDiv({ cls: "qh-weather-day" });
+        const row = days.createDiv({ cls: "qh-weather-day" });
         row.createSpan({ text: index === 0 ? L("今天", "Today") : index === 1 ? L("明天", "Tomorrow") : shortWeekday(day.day) });
         setIcon(row.createSpan({ cls: "qh-weather-icon" }), label.icon);
         row.createSpan({ text: label.text });
@@ -628,28 +661,66 @@ export function renderExtraOptions(contentEl: HTMLElement, plugin: QiaomuHomePlu
     return;
   }
   if (id === "weather") {
-    contentEl.createEl("p", { cls: "qh-native-scope", text: L("城市名称发送给 Open-Meteo 地理编码服务，天气查询只发送坐标；数据缓存 30 分钟。", "The city name goes to Open-Meteo's geocoding service and only coordinates are used for forecasts; data is cached for 30 minutes.") });
+    contentEl.createEl("p", { cls: "qh-native-scope", text: L("中国城市与区县优先本地查找，支持简称、全称和拼音；其他地点向 Open-Meteo 查询。天气只发送坐标，缓存 30 分钟。", "Chinese cities and counties are searched locally by short name, full name or pinyin; other locations use Open-Meteo. Weather requests send only coordinates and are cached for 30 minutes.") });
     const chosen = new Setting(contentEl).setName(L("当前城市", "Current city")).setDesc(options.location?.name ?? L("尚未选择", "Not selected"));
-    let query = options.location?.name ?? "";
-    const results = contentEl.createDiv({ cls: "qh-option-results" });
+    let query = options.location?.name ?? "", countryCode = options.countryCode ?? "", generation = 0, selectionGeneration = 0;
+    const results = contentEl.createDiv({ cls: "qh-option-results" }); results.setAttr("aria-live", "polite");
+    const invalidate = () => { generation++; results.empty(); };
+    const choose = async (location: NonNullable<ModuleOptions["location"]>) => {
+      invalidate();
+      const token = generation, selection = ++selectionGeneration;
+      const ok = await persist({ location });
+      if (ok && selection === selectionGeneration && contentEl.isConnected) {
+        chosen.setDesc(location.name);
+        if (token === generation) results.empty();
+      }
+      return ok;
+    };
     const search = async () => {
+      const token = ++generation;
       results.empty();
       if (!query.trim()) return;
       results.setText(L("正在查找…", "Searching…"));
       try {
-        const url = `https://geocoding-api.open-meteo.com/v1/search?${new URLSearchParams({ name: query.trim(), count: "6", language: currentLanguage(), format: "json" }).toString()}`;
-        const places = parseGeocoding(JSON.parse(await fetchText(url, 3600000)));
+        const places = await searchWeatherPlaces(query, countryCode, currentLanguage(), url => fetchText(url, 3600000));
+        if (token !== generation || !contentEl.isConnected) return;
         results.empty();
-        if (!places.length) { results.setText(L("没有找到这个城市", "No matching city")); return; }
+        if (!places.length) { results.setText(L("没有找到这个地点。试试完整名称、调整国家／地区，或手动填写坐标。", "No matching location. Try its full name, change the country / region, or enter coordinates manually.")); return; }
         for (const place of places) new Setting(results).setName(place.name).setDesc(place.detail).addButton(button => button.setButtonText(L("使用", "Use")).onClick(() => {
-          void persist({ location: { name: place.name, latitude: place.latitude, longitude: place.longitude } }).then(ok => { if (ok) { chosen.setDesc(place.name); results.empty(); } });
+          void choose({ name: place.name, latitude: place.latitude, longitude: place.longitude });
         }));
-      } catch { results.setText(L("查找失败，请检查网络后重试", "Search failed; check your connection")); }
+      } catch {
+        if (token === generation && contentEl.isConnected) results.setText(L("查找失败，请检查网络后重试", "Search failed; check your connection"));
+      }
     };
+    const names = new Intl.DisplayNames([dateLocale()], { type: "region" });
+    const countries: Record<string, string> = {};
+    const regions = WEATHER_COUNTRIES.map(code => ({ code, name: names.of(code) ?? code })).sort((a, b) => a.name.localeCompare(b.name, dateLocale()));
+    for (const region of regions) countries[region.code] = region.name;
+    new Setting(contentEl).setName(L("国家／地区", "Country / region")).addDropdown(dropdown => dropdown.addOptions({ "": L("所有国家和地区", "All countries and regions"), ...countries })
+      .setValue(countryCode).onChange(value => {
+        countryCode = value; invalidate();
+        void persist({ countryCode: value });
+        if (query.trim()) void search();
+      }));
     new Setting(contentEl).setName(L("查找城市", "Find a city"))
-      .addText(input => { input.setValue(query).onChange(value => { query = value; }); onEnterSetting(input.inputEl, () => void search()); })
+      .addText(input => { input.setValue(query).setPlaceholder(L("例如：温州、浙江省温州市、Wenzhou", "e.g. Wenzhou, Paris or Tokyo")).onChange(value => { query = value; invalidate(); }); onEnterSetting(input.inputEl, () => void search()); })
       .addButton(button => button.setButtonText(L("查找", "Search")).onClick(() => void search()));
     contentEl.appendChild(results);
+    const manual = contentEl.createEl("details", { cls: "qh-weather-manual" });
+    manual.createEl("summary", { text: L("手动填写位置", "Enter location manually") });
+    let manualName = options.location?.name ?? "", latitude = options.location ? String(options.location.latitude) : "", longitude = options.location ? String(options.location.longitude) : "";
+    new Setting(manual).setName(L("位置名称", "Location name")).addText(input => input.setValue(manualName).onChange(value => { manualName = value; }));
+    new Setting(manual).setName(L("纬度", "Latitude")).addText(input => input.setValue(latitude).setPlaceholder("-90 … 90").onChange(value => { latitude = value; }));
+    new Setting(manual).setName(L("经度", "Longitude")).addText(input => input.setValue(longitude).setPlaceholder("-180 … 180").onChange(value => { longitude = value; }));
+    const status = manual.createDiv({ cls: "qh-native-scope" }); status.setAttr("aria-live", "polite");
+    new Setting(manual).addButton(button => button.setButtonText(L("使用此位置", "Use this location")).onClick(() => {
+      const location = coordinateLocation(manualName, latitude, longitude);
+      if (!location) { status.setText(L("请填写名称和有效坐标：纬度 −90 至 90，经度 −180 至 180。", "Enter a name and valid coordinates: latitude −90 to 90, longitude −180 to 180.")); return; }
+      void choose(location).then(ok => { if (contentEl.isConnected) status.setText(ok ? L("已保存", "Saved") : t("layout.saveFailed")); });
+    }));
+    const credit = contentEl.createEl("a", { cls: "qh-native-scope", text: L("地点数据：GeoNames · CC BY 4.0", "Location data: GeoNames · CC BY 4.0"), href: "https://www.geonames.org/" });
+    credit.setAttr("target", "_blank"); credit.setAttr("rel", "noopener noreferrer");
     new Setting(contentEl).setName(L("温度单位", "Temperature unit")).addDropdown(dropdown => dropdown.addOptions({ c: "°C", f: "°F" }).setValue(options.unit ?? "c").onChange(value => { void persist({ unit: value as "c" | "f" }); }));
     return;
   }

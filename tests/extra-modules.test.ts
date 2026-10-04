@@ -87,10 +87,10 @@ describe("weather", () => {
     expect(weatherLabel(0)).toEqual({ text: "晴", icon: "sun" });
     expect(weatherLabel(95).icon).toBe("cloud-lightning");
     const forecast = parseForecast({ current: { temperature_2m: 21.4, apparent_temperature: 20, weather_code: 2 }, daily: { time: ["2026-09-27"], weather_code: [61], temperature_2m_max: [24], temperature_2m_min: [17], precipitation_probability_max: [80] } });
-    expect(forecast.days[0]).toEqual({ day: "2026-09-27", code: 61, max: 24, min: 17, rain: 80 });
+    expect(forecast.days[0]).toEqual({ day: "2026-09-27", code: 61, max: 24, min: 17, rain: 80, sunrise: null, sunset: null });
     expect(() => parseForecast({ current: {} })).toThrow();
     expect(parseGeocoding({ results: [{ name: "Hangzhou", latitude: 30.29, longitude: 120.16, country: "China", admin1: "Zhejiang" }, { bad: true }] }))
-      .toEqual([{ name: "Hangzhou", latitude: 30.29, longitude: 120.16, detail: "Zhejiang, China" }]);
+      .toEqual([{ name: "Hangzhou", latitude: 30.29, longitude: 120.16, detail: "Zhejiang · China", countryCode: undefined }]);
   });
 });
 
