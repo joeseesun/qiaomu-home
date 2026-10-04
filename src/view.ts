@@ -967,7 +967,13 @@ export class HomeView extends ItemView {
       }
       if (!first) {
         const restore = this.captureFocus(grid);
+        const scrollTop = this.pageEl.scrollTop;
+        // The new masonry grid starts with 1px rows. Keep the old height until its
+        // cards have been measured, or the browser clamps the page's scroll to zero.
+        next.style.minHeight = `${grid.getBoundingClientRect().height}px`;
         grid.replaceWith(next); this.gridEl = next; this.masonry(next);
+        next.style.removeProperty("min-height");
+        this.pageEl.scrollTop = scrollTop;
         restore(next);
       }
     }).catch((error: unknown) => console.error("Qiaomu Home: could not load modules", error));
