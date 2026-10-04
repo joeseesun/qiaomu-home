@@ -6,9 +6,9 @@ const SERVICE = Symbol.for("qiaomu.pane-dividers.v1");
 const HANDLE = ".workspace-leaf-resize-handle";
 const VIEWS = new Set(["qiaomu-reader", "qiaomu-book-reader-ai-chat", "qiaomu-agent-view", "qiaomu-ai-rss-reader", "qiaomu-home", "qiaomu-radio-view"]);
 const STRUCTURE = ".workspace-leaf,.workspace-split,.workspace-tabs,.workspace-leaf-resize-handle";
-const PROPS = ["--divider-color", "--divider-color-hover"];
+const PROPS = ["--qiaomu-divider-color", "--qiaomu-divider-hover", "--qiaomu-divider-start", "--qiaomu-divider-end", "--qiaomu-divider-direction"];
 type Palette = { background: string; foreground: string; dark: boolean };
-type Pane = { rect: DOMRect; palette: Palette };
+type Pane = { rect: DOMRect; content: DOMRect; palette: Palette };
 type Saved = { original: [string, string][]; applied: string[]; hadClass: boolean };
 type DividerService = { users: number; refresh: () => void; stop: () => void };
 type PaneDocument = Document & { [SERVICE]?: DividerService };
@@ -72,7 +72,7 @@ function createService(doc: PaneDocument): DividerService | undefined {
       const root = content.querySelector<HTMLElement>(".view-content");
       if (!root) continue;
       const surface = root.querySelector<HTMLElement>(".qiaomu-radio__shell") || root;
-      panes.push({ rect, palette: palette(surface, win) });
+      panes.push({ rect, content: root.getBoundingClientRect(), palette: palette(surface, win) });
     }
     const active = new Set<HTMLElement>();
     for (const handle of workspace.querySelectorAll<HTMLElement>(HANDLE)) {
@@ -97,6 +97,12 @@ function createService(doc: PaneDocument): DividerService | undefined {
       }
       const { background, foreground } = selected.palette;
       const values = [12, 24].map(amount => `color-mix(in srgb, ${foreground} ${amount}%, ${background})`);
+      // The native tab/title strip keeps its host theme, even above a wallpaper
+      // or a reading theme that differs from the application's appearance.
+      const start = vertical ? selected.content.top - rect.top : selected.content.left - rect.left;
+      const end = vertical ? selected.content.bottom - rect.top : selected.content.right - rect.left;
+      const length = vertical ? rect.height : rect.width;
+      values.push(`${Math.max(0, Math.min(length, start))}px`, `${Math.max(0, Math.min(length, end))}px`, vertical ? "to bottom" : "to right");
       values.forEach((value, i) => {
         const key = PROPS[i];
         if (key && handle.style.getPropertyValue(key) !== value) handle.style.setProperty(key, value);
