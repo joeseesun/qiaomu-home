@@ -1,4 +1,5 @@
 import { PRODUCTIVITY_MODULES, type ProductivityId } from "./productivity-catalog";
+import { attachMasonry } from "./masonry";
 import { isComposingKey } from "./input-ui";
 import { renderProductivity, paintFocus } from "./productivity-ui";
 import { renderBeginnerPlugins } from "./beginner-ui";
@@ -96,6 +97,7 @@ export class HomeView extends ItemView {
   private clearEl!: HTMLElement;
   private resultsEl!: HTMLElement;
   private gridEl!: HTMLElement;
+  private disposeMasonry?: () => void;
   private tabsEl!: HTMLElement;
   private activePageId = "";
   private tabsSignature = "";
@@ -224,6 +226,7 @@ export class HomeView extends ItemView {
 
   async onClose(): Promise<void> {
     this.dragFeedback?.clear();
+    this.disposeMasonry?.();
     this.searchGeneration++;
     this.sectionsGeneration++;
     this.photoGeneration++;
@@ -802,6 +805,11 @@ export class HomeView extends ItemView {
     });
   }
 
+  private masonry(grid: HTMLElement): void {
+    this.disposeMasonry?.();
+    this.disposeMasonry = attachMasonry(grid);
+  }
+
   private renderPages(): void {
     const settings = this.plugin.settings;
     const page = currentPage(settings);
@@ -891,7 +899,7 @@ export class HomeView extends ItemView {
     next.detach();
     const first = !grid.hasChildNodes();
     if (moduleOptions(this.plugin.settings, "recent", page.id).visible) this.renderRecent(next);
-    if (first) { grid.replaceWith(next); this.gridEl = next; }
+    if (first) { grid.replaceWith(next); this.gridEl = next; this.masonry(next); }
     void pluginModules(this.app, Object.keys(page.moduleOptions).map(moduleSource).filter((id): id is string => Boolean(id))).then((modules) => {
       if (generation !== this.sectionsGeneration) return;
       const expanded = [...modules];
@@ -959,7 +967,7 @@ export class HomeView extends ItemView {
       }
       if (!first) {
         const restore = this.captureFocus(grid);
-        grid.replaceWith(next); this.gridEl = next;
+        grid.replaceWith(next); this.gridEl = next; this.masonry(next);
         restore(next);
       }
     }).catch((error: unknown) => console.error("Qiaomu Home: could not load modules", error));
