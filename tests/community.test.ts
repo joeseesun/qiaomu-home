@@ -55,6 +55,7 @@ describe("integration parsers", () => {
       { title: "Evil", html_url: "https://evil.example/x" },
     ] })).toEqual([{ title: "Fix bug", url: "https://github.com/o/r/pull/3", repo: "o/r", number: 3, updated: "2026-09-27T00:00:00Z", pull: true }]);
     expect(GITHUB_QUERIES.reviews).toContain("review-requested:@me");
+    expect(GITHUB_QUERIES.assigned).toContain("is:issue");
   });
 });
 
