@@ -3,7 +3,7 @@ import type { Setting } from "obsidian";
 import { L } from "./i18n";
 
 /** Placeholders that show literal syntax (moment formats, Dataview, Obsidian search) and must keep their casing. */
-export const SYNTAX_EXAMPLES = { weekly: "gggg-[W]ww", dataview: "LIST FROM #project", search: "tag:#work" } as const;
+export const SYNTAX_EXAMPLES = { weekly: "gggg-[W]ww", search: "tag:#work" } as const;
 
 const pending = new WeakMap<HTMLElement, Set<() => void>>();
 
