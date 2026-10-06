@@ -316,8 +316,31 @@ export class ModuleOptionsModal extends Modal {
         .addButton(button => button.setButtonText(state === "disabled" ? L("去启用", "Turn on") : L("安装", "Install")).setCta()
           .onClick(() => state === "disabled" ? openCommunityPluginSettings(this.app) : openPluginPage(integration.plugin)));
       if (this.moduleId === "dataview-query") {
-        const setting = new Setting(this.contentEl).setName(L("Dataview 查询", "Dataview query")).setDesc(L("支持 LIST 和 TABLE，例如：LIST FROM #项目 SORT file.mtime DESC。离开输入框或按 ⌘↵ 保存。", "LIST and TABLE, e.g. LIST FROM #project SORT file.mtime DESC. Saves when you leave the field or press ⌘↵."));
-        setting.addTextArea(input => { input.inputEl.rows = 4; input.inputEl.placeholder = SYNTAX_EXAMPLES.dataview; input.setValue(options.query ?? ""); autoSave(this.contentEl, setting, input.inputEl, value => persist({ query: value.trim().slice(0, 500) })); });
+        const wrap = this.contentEl.createDiv();
+        const render = () => {
+          wrap.empty();
+          const current = moduleOptions(this.plugin.settings, this.moduleId, this.pageId);
+          const view = current.view ?? "notes", sourceKind = current.sourceKind ?? "all";
+          new Setting(wrap).setName(L("显示内容", "Content")).setDesc(L("把符合条件的笔记、属性或任务放到卡片上。", "Show matching notes, properties, or tasks on the card."))
+            .addDropdown(dropdown => dropdown.addOptions({ notes: L("笔记列表", "Notes"), table: L("属性表格", "Property table"), tasks: L("任务", "Tasks") })
+              .setValue(view).onChange(value => { void persist({ view: value as "table" | "tasks" }); render(); }));
+          new Setting(wrap).setName(L("范围", "Scope"))
+            .addDropdown(dropdown => dropdown.addOptions({ all: L("整个知识库", "Whole vault"), tag: L("带某个标签的笔记", "Notes with a tag"), folder: L("某个文件夹", "A folder") })
+              .setValue(sourceKind).onChange(value => { void persist({ sourceKind: value as "tag" | "folder" }); render(); }));
+          if (sourceKind === "tag") {
+            const setting = new Setting(wrap).setName(L("标签", "Tag")).setDesc(L("填笔记上已有的标签，不用带 # 号。", "A tag your notes already use, without the #."));
+            setting.addText(input => { input.setPlaceholder(L("例如：项目", "e.g. project")); input.setValue(current.sourceValue ?? ""); autoSave(this.contentEl, setting, input.inputEl, value => persist({ sourceValue: value })); });
+          }
+          if (sourceKind === "folder") folderDropdown(wrap, this.plugin, L("文件夹", "Folder"), L("整个知识库", "Whole vault"), current.sourceValue ?? "", value => { void persist({ sourceValue: value }); });
+          if (view === "table") {
+            const setting = new Setting(wrap).setName(L("显示哪些属性", "Properties to show")).setDesc(L("笔记属性里的字段名，用逗号分隔。留空则按笔记列表显示。", "Frontmatter property names, comma separated. Empty falls back to notes."));
+            setting.addText(input => { input.setPlaceholder(L("例如：状态, 截止", "e.g. status, due")); input.setValue(current.fields ?? ""); autoSave(this.contentEl, setting, input.inputEl, value => persist({ fields: value })); });
+          }
+          if (view === "tasks") new Setting(wrap).setName(L("只看未完成", "Only unfinished")).addToggle(toggle => toggle.setValue(current.onlyOpen ?? true).onChange(value => { void persist({ onlyOpen: value }); }));
+          new Setting(wrap).setName(L("排序", "Sort")).addDropdown(dropdown => dropdown.addOptions({ mtime: L("最近修改优先", "Recently edited first"), ctime: L("最近创建优先", "Recently created first"), name: L("按名称", "By name") })
+            .setValue(current.sortBy ?? "mtime").onChange(value => { void persist({ sortBy: value as "ctime" | "name" }); }));
+        };
+        render();
       }
       if (["dataview-query", "kanban-boards", "excalidraw-drawings", "omnisearch", "quickadd-actions"].includes(this.moduleId)) new Setting(this.contentEl).setName(t("layout.count"))
         .addDropdown(dropdown => dropdown.addOptions(Object.fromEntries(Array.from({ length: 6 }, (_, i) => [String(i + 1), String(i + 1)])))

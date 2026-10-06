@@ -927,7 +927,7 @@ export class HomeView extends ItemView {
         if (moduleOptions(this.plugin.settings, id, page.id).visible) renderExtra(next, this.plugin, id, page.id, () => new ModuleOptionsModal(this.plugin, page.id, id, L(EXTRA_MODULES[id].zh, EXTRA_MODULES[id].en)).open());
       }
       for (const id of Object.keys(INTEGRATIONS) as IntegrationId[]) {
-        if (moduleOptions(this.plugin.settings, id, page.id).visible) renderIntegration(next, this.plugin, id, page.id, () => new ModuleOptionsModal(this.plugin, page.id, id, L(INTEGRATIONS[id].zh, INTEGRATIONS[id].en)).open());
+        if (moduleOptions(this.plugin.settings, id, page.id).visible) renderIntegration(next, this.plugin, id, page.id);
       }
       if (moduleOptions(this.plugin.settings, "todo", page.id).visible) renderTodo(next, this.plugin, moduleOptions(this.plugin.settings, "todo", page.id).limit);
       if (moduleOptions(this.plugin.settings, "daily-preview", page.id).visible) this.renderDailyPreview(next, page.id);

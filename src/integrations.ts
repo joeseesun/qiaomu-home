@@ -4,7 +4,7 @@ import type QiaomuHomePlugin from "./main";
 import { cardAction, fieldRow } from "./card-ui";
 import { installState, openCommunityPluginSettings, openPluginPage, runCommand, type InstallState } from "./ecosystem";
 import { L } from "./i18n";
-import { moduleOptions } from "./settings";
+import { moduleOptions, type ModuleOptions } from "./settings";
 import { INTEGRATIONS, type IntegrationId } from "./integration-catalog";
 export { INTEGRATIONS, isIntegration, type IntegrationId } from "./integration-catalog";
 
@@ -60,7 +60,7 @@ export function kanbanSummary(markdown: string): { lanes: number; cards: number;
   return { lanes, cards, open };
 }
 
-export function renderIntegration(parent: HTMLElement, plugin: QiaomuHomePlugin, id: IntegrationId, pageId: string, configure: () => void): void {
+export function renderIntegration(parent: HTMLElement, plugin: QiaomuHomePlugin, id: IntegrationId, pageId: string): void {
   const app = plugin.app, config = INTEGRATIONS[id], options = moduleOptions(plugin.settings, id, pageId);
   const card = parent.createDiv({ cls: "qh-card" }); card.dataset.module = id;
   const head = card.createDiv({ cls: "qh-card-head" });
@@ -101,13 +101,21 @@ export function renderIntegration(parent: HTMLElement, plugin: QiaomuHomePlugin,
   }
 
   if (id === "dataview-query") {
-    const query = options.query?.trim();
-    if (!query) { message(L("写一条 Dataview 查询，例如 LIST FROM #项目", "Write a Dataview query, e.g. LIST FROM #project")); cardAction(body, L("设置查询", "Set query"), configure, "settings-2", true); return; }
-    const api = pluginInstance<{ api?: { query?(source: string): Promise<{ successful: boolean; value?: { type: string; values?: unknown[]; headers?: string[] }; error?: string }> } }>(app, "dataview")?.api;
-    body.createDiv({ cls: "qh-code-line", text: query });
+    const dataview = pluginInstance<{ api?: DataviewApiLike }>(app, "dataview")?.api;
+    if (!dataview) { message(L("Dataview 还在建立索引，稍后刷新", "Dataview is still indexing")); return; }
+    const query = dataviewQuery(options);
+    if (query.render === "native") {
+      if (typeof dataview.execute !== "function") { message(L("请把 Dataview 插件更新到新版本", "Update the Dataview plugin to a newer version")); return; }
+      const host = body.createDiv({ cls: "qh-dataview" });
+      // Dataview renders a live-updating view and cleans up when the card DOM is removed.
+      void Promise.resolve(dataview.execute(query.source, host, plugin, "")).catch(() => {
+        if (card.isConnected) { host.empty(); host.createDiv({ cls: "qh-card-empty", text: L("查询失败", "Query failed") }); }
+      });
+      return;
+    }
     const results = body.createDiv({ cls: "qh-native-preview" });
     results.createDiv({ cls: "qh-card-empty", text: L("正在查询…", "Running…") });
-    void Promise.resolve(api?.query?.(query)).then(result => {
+    void Promise.resolve(dataview.query?.(query.source)).then(result => {
       if (!card.isConnected) return; results.empty();
       if (!result) { results.createDiv({ cls: "qh-card-empty", text: L("Dataview 还在建立索引，稍后刷新", "Dataview is still indexing") }); return; }
       if (!result.successful || !result.value) { results.createDiv({ cls: "qh-card-empty", text: L("查询出错：{v}", "Query error: {v}", { v: result.error ?? "" }) }); return; }
@@ -193,6 +201,24 @@ export function renderIntegration(parent: HTMLElement, plugin: QiaomuHomePlugin,
     body.appendChild(results);
     return;
   }
+}
+
+interface DataviewApiLike {
+  query?(source: string): Promise<{ successful: boolean; value?: { type: string; values?: unknown[] }; error?: string }>;
+  /** Renders a live-updating dataview view; component owns the lifecycle and cleans up when container is removed. */
+  execute?(source: string, container: HTMLElement, component: unknown, filePath: string): Promise<void>;
+}
+
+/** Compose a beginner-safe DQL query from GUI options; users never see the syntax. */
+export function dataviewQuery(options: ModuleOptions): { render: "rows" | "native"; source: string } {
+  const value = (options.sourceValue ?? "").trim().replace(/^#/, "").replace(/^"|"$/g, "");
+  const scope = options.sourceKind === "tag" && value ? `FROM #${value}` : options.sourceKind === "folder" && value ? `FROM "${value}"` : 'FROM ""';
+  const order = options.sortBy === "name" ? "file.name ASC" : options.sortBy === "ctime" ? "file.ctime DESC" : "file.mtime DESC";
+  const limit = Math.min(6, Math.max(1, Math.floor(options.limit)));
+  const fields = [...new Set((options.fields ?? "").split(/[,，、]/).map(field => field.trim()).filter(Boolean))].slice(0, 4);
+  if (options.view === "tasks") return { render: "native", source: `TASK ${scope} ${options.onlyOpen ?? true ? "WHERE !completed " : ""}SORT ${order} LIMIT ${limit}` };
+  if (options.view === "table" && fields.length) return { render: "native", source: `TABLE ${fields.join(", ")} ${scope} SORT ${order} LIMIT ${limit}` };
+  return { render: "rows", source: `LIST ${scope} SORT ${order} LIMIT ${limit}` };
 }
 
 function dataviewText(value: unknown): string {

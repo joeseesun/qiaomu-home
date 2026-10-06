@@ -48,6 +48,18 @@ export interface ModuleOptions {
   includeOverdue?: boolean;
   /** Multi-search: Enter opens every highlighted site (true) or only the first (false). Unset means true. */
   openAll?: boolean;
+  /** Dataview card: what the query shows. Unset means notes. */
+  view?: "notes" | "table" | "tasks";
+  /** Dataview card: what the query ranges over. Unset means the whole vault. */
+  sourceKind?: "all" | "tag" | "folder";
+  /** Dataview card: tag name (no #) or folder path. */
+  sourceValue?: string;
+  /** Dataview card: comma-separated frontmatter fields for the table view. */
+  fields?: string;
+  /** Dataview card: hide completed tasks. Unset means true. */
+  onlyOpen?: boolean;
+  /** Dataview card: result order. Unset means recent edits first. */
+  sortBy?: "mtime" | "ctime" | "name";
 }
 export const DEFAULT_MODULE_OPTIONS: ModuleOptions = { visible: true, limit: 3 };
 
@@ -327,6 +339,12 @@ function normalizeModules(value: unknown): Record<string, ModuleOptions> {
       ...(typeof candidate.excludeDaily === "boolean" ? { excludeDaily: candidate.excludeDaily } : {}),
       ...(typeof candidate.includeOverdue === "boolean" ? { includeOverdue: candidate.includeOverdue } : {}),
       ...(typeof candidate.openAll === "boolean" ? { openAll: candidate.openAll } : {}),
+      ...(candidate.view === "table" || candidate.view === "tasks" ? { view: candidate.view } : {}),
+      ...(candidate.sourceKind === "tag" || candidate.sourceKind === "folder" ? { sourceKind: candidate.sourceKind } : {}),
+      ...(typeof candidate.sourceValue === "string" ? { sourceValue: candidate.sourceValue.trim().replace(/^#/, "").replace(/^"|"$/g, "").slice(0, 200) } : {}),
+      ...(typeof candidate.fields === "string" ? { fields: candidate.fields.slice(0, 200) } : {}),
+      ...(typeof candidate.onlyOpen === "boolean" ? { onlyOpen: candidate.onlyOpen } : {}),
+      ...(candidate.sortBy === "ctime" || candidate.sortBy === "name" ? { sortBy: candidate.sortBy } : {}),
       visible: typeof candidate.visible === "boolean" ? candidate.visible : true,
       limit: typeof candidate.limit === "number" && Number.isFinite(candidate.limit)
         ? Math.min(6, Math.max(1, Math.floor(candidate.limit))) : 3,

@@ -2,8 +2,8 @@
 export const INTEGRATIONS = {
   "quickadd-actions": { plugin: "quickadd", pluginName: "QuickAdd", zh: "QuickAdd 动作", en: "QuickAdd actions", icon: "zap", repo: "https://github.com/chhoumann/quickadd",
     description: "一键运行你在 QuickAdd 里配置的模板、捕获和宏。", descriptionEn: "Run your QuickAdd templates, captures and macros in one click." },
-  "dataview-query": { plugin: "dataview", pluginName: "Dataview", zh: "Dataview 查询", en: "Dataview query", icon: "database", repo: "https://github.com/blacksmithgu/obsidian-dataview",
-    description: "把一条 Dataview 查询的结果放到首页。", descriptionEn: "Show the results of one Dataview query." },
+  "dataview-query": { plugin: "dataview", pluginName: "Dataview", zh: "Dataview 卡片", en: "Dataview card", icon: "database", repo: "https://github.com/blacksmithgu/obsidian-dataview",
+    description: "把一个标签或文件夹变成笔记、属性或任务卡片。", descriptionEn: "Turn a tag or folder into a notes, properties or tasks card." },
   "kanban-boards": { plugin: "obsidian-kanban", pluginName: "Kanban", zh: "看板", en: "Kanban boards", icon: "columns-3", repo: "https://github.com/mgmeyers/obsidian-kanban",
     description: "最近的看板和每列卡片数，一键新建看板。", descriptionEn: "Recent boards with card counts; create a new board." },
   "excalidraw-drawings": { plugin: "obsidian-excalidraw-plugin", pluginName: "Excalidraw", zh: "手绘白板", en: "Excalidraw drawings", icon: "pen-tool", repo: "https://github.com/zsviczian/obsidian-excalidraw-plugin",

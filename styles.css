@@ -412,6 +412,14 @@
 }
 
 .qh-native-preview { display: flex; flex-direction: column; gap: 5px; padding: 5px 0; min-width: 0; }
+/* Dataview's live views (table / task) rendered inside an integration card. */
+.qh-dataview { min-width: 0; font-size: var(--font-ui-smaller); }
+.qh-dataview .dataview { margin: 0; }
+.qh-dataview .table-view-table { width: 100%; }
+.qh-dataview .table-view-table > thead > tr > th { font-size: var(--font-ui-smaller); color: var(--text-faint); }
+.qh-dataview .table-view-table > tbody > tr > td { padding-block: 4px; border-bottom: 1px solid var(--background-modifier-border); }
+.qh-dataview .table-view-table > tbody > tr:last-child > td { border-bottom: none; }
+.qh-dataview ul.task-list-basic-item, .qh-dataview ul.contains-task-list { margin-block: 2px; padding-inline-start: 18px; }
 .qh-native-line { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--qh-text); font-size: 13px; line-height: 1.6; }
 .qh-native-scope { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 3px 0; color: var(--qh-faint); font-size: 12px; }
 .qh-root .qh-native-open { margin: 6px 0 2px; padding: 4px 0; border: 0; background: transparent; box-shadow: none; color: var(--qh-muted); font-size: 12px; cursor: pointer; }
@@ -1250,14 +1258,13 @@ body:has(.workspace-leaf.mod-active > .workspace-leaf-content:is(
 .qh-ui .qh-plugin-guide-status { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; padding: 3px 9px; border-radius: 999px; background: var(--qh-hover, var(--background-modifier-hover)); color: var(--qh-muted, var(--text-muted)); font-size: 12px; }
 .qh-ui .qh-plugin-guide-status svg { width: 13px; height: 13px; }
 .qh-ui .qh-plugin-guide .qh-workflow-actions > .qh-native-open { margin-top: 2px; }
-.qh-root .qh-list-row { display: flex; align-items: flex-start; gap: 10px; width: 100%; height: auto; margin: 0 -8px; padding: 7px 8px; border: 0; border-radius: 8px; background: transparent; box-shadow: none; text-align: start; color: var(--qh-text); cursor: pointer; white-space: normal; box-sizing: content-box; }
+.qh-root .qh-list-row { display: flex; justify-content: flex-start; align-items: flex-start; gap: 10px; width: 100%; height: auto; margin: 0 -8px; padding: 7px 8px; border: 0; border-radius: 8px; background: transparent; box-shadow: none; text-align: start; color: var(--qh-text); cursor: pointer; white-space: normal; box-sizing: content-box; }
 .qh-root .qh-list-row:hover { background: var(--qh-hover); }
 .qh-root .qh-list-row-icon { display: inline-flex; padding-top: 2px; color: var(--qh-muted); }
 .qh-root .qh-list-row-icon svg { width: 15px; height: 15px; }
 .qh-root .qh-list-row-text { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
 .qh-root .qh-list-row-text .qh-workflow-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .qh-root .qh-list-row-text .qh-item-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.qh-ui .qh-code-line { padding: 5px 9px; border-radius: 6px; background: var(--qh-field, var(--background-secondary)); color: var(--qh-muted, var(--text-muted)); font-family: var(--font-monospace); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .qh-ui .qh-path-chip { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 2px 8px; border-radius: 6px; background: var(--background-modifier-hover); color: var(--text-normal); font-size: var(--font-ui-smaller); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .qh-ui .qh-path-chip svg { width: 12px; height: 12px; flex: none; color: var(--text-muted); }
 
