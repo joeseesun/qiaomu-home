@@ -7,6 +7,7 @@ import {
 import { fillNoise } from "../src/ambient";
 import { DISCOVERY_MODULES, defaultSites, discoveryUrl, translateTarget } from "../src/discovery";
 import { EXTRA_MODULES } from "../src/extra-catalog";
+import { dataviewQuery } from "../src/integrations";
 import { MODULE_CATEGORIES, moduleCategory } from "../src/module-categories";
 import { builtinModules } from "../src/module-catalog";
 import { DEFAULT_SETTINGS, moduleOptions, normalizeSettings } from "../src/settings";
@@ -148,6 +149,58 @@ describe("catalog, categories and settings", () => {
     expect(moduleOptions(settings, "day-progress").end).toBe("18:30");
     expect(settings.focusLog).toBe(true);
     expect(settings.ambient).toEqual({ kind: "pink", volume: 1 });
+  });
+  it("normalizes customDql and custom sourceKind for the dataview card", () => {
+    const settings = normalizeSettings({ pages: [{ id: "home", moduleOptions: {
+      "dataview-query": { visible: true, sourceKind: "custom", customDql: "TABLE file.name FROM #tag" },
+    } }] });
+    const opts = moduleOptions(settings, "dataview-query");
+    expect(opts.sourceKind).toBe("custom");
+    expect(opts.customDql).toBe("TABLE file.name FROM #tag");
+  });
+  it("drops customDql when it is not a string and truncates long values", () => {
+    const long = "LIST " + "x".repeat(2100);
+    const settings = normalizeSettings({ pages: [{ id: "home", moduleOptions: {
+      "dataview-query": { visible: true, customDql: long },
+      "dv-bad": { visible: true, customDql: 42 as unknown as string },
+    } }] });
+    expect(moduleOptions(settings, "dataview-query").customDql).toHaveLength(2000);
+    expect(moduleOptions(settings, "dv-bad").customDql).toBeUndefined();
+  });
+  it("ignores unknown sourceKind values and preserves valid ones", () => {
+    const settings = normalizeSettings({ pages: [{ id: "home", moduleOptions: {
+      "dv-bad": { visible: true, sourceKind: "invalid" as "all" },
+      "dv-good": { visible: true, sourceKind: "folder" },
+    } }] });
+    expect(moduleOptions(settings, "dv-bad").sourceKind).toBeUndefined();
+    expect(moduleOptions(settings, "dv-good").sourceKind).toBe("folder");
+  });
+});
+
+describe("dataview query builder", () => {
+  it("returns a native render with the user DQL when sourceKind is custom", () => {
+    const result = dataviewQuery({ visible: true, limit: 3, sourceKind: "custom", customDql: "TABLE status, due FROM #project SORT due ASC" });
+    expect(result.render).toBe("native");
+    expect(result.source).toBe("TABLE status, due FROM #project SORT due ASC");
+  });
+  it("trims whitespace from custom DQL", () => {
+    const result = dataviewQuery({ visible: true, limit: 3, sourceKind: "custom", customDql: "  LIST FROM #tag  " });
+    expect(result.source).toBe("LIST FROM #tag");
+  });
+  it("falls back to the default LIST query when custom DQL is empty", () => {
+    const result = dataviewQuery({ visible: true, limit: 3, sourceKind: "custom", customDql: "   " });
+    expect(result.render).toBe("rows");
+    expect(result.source).toContain("LIST");
+  });
+  it("falls back to the default LIST query when customDql is unset", () => {
+    const result = dataviewQuery({ visible: true, limit: 3, sourceKind: "custom" });
+    expect(result.render).toBe("rows");
+    expect(result.source).toContain("LIST");
+  });
+  it("still generates GUI queries when sourceKind is not custom", () => {
+    expect(dataviewQuery({ visible: true, limit: 3, sourceKind: "tag", sourceValue: "project" }).source).toContain("FROM #project");
+    expect(dataviewQuery({ visible: true, limit: 3, view: "tasks" }).source).toContain("TASK");
+    expect(dataviewQuery({ visible: true, limit: 3, view: "table", fields: "status, due" }).source).toContain("TABLE status, due");
   });
 });
 

@@ -28,7 +28,7 @@ import {
 } from "./ecosystem";
 import { greeting, relativeTime, t } from "./i18n";
 import type QiaomuHomePlugin from "./main";
-import { currentPage, localDay, moduleOptions, moduleSource, type FocusItem, type HomeSettings } from "./settings";
+import { currentPage, isDataviewInstance, localDay, moduleOptions, moduleSource, type FocusItem, type HomeSettings } from "./settings";
 import { addPage, addPresetPage, duplicatePage, movePage, removePage, reorderPage } from "./pages";
 import { orderModules, reorderModule, setModule } from "./layout";
 import { pluginModules, type HomeModule } from "./module-catalog";
@@ -928,6 +928,9 @@ export class HomeView extends ItemView {
       }
       for (const id of Object.keys(INTEGRATIONS) as IntegrationId[]) {
         if (moduleOptions(this.plugin.settings, id, page.id).visible) renderIntegration(next, this.plugin, id, page.id);
+      }
+      for (const id of Object.keys(page.moduleOptions)) {
+        if (isDataviewInstance(id) && id !== "dataview-query" && page.moduleOptions[id].visible) renderIntegration(next, this.plugin, id, page.id);
       }
       if (moduleOptions(this.plugin.settings, "todo", page.id).visible) renderTodo(next, this.plugin, moduleOptions(this.plugin.settings, "todo", page.id).limit);
       if (moduleOptions(this.plugin.settings, "daily-preview", page.id).visible) this.renderDailyPreview(next, page.id);

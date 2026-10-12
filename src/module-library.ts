@@ -2,7 +2,7 @@ import { BookmarkImportModal } from "./bookmark-import";
 import { PRODUCTIVITY_MODULES, type ProductivityId } from "./productivity-catalog";
 import { DISCOVERY_MODULES, defaultSites, parseSearchTemplates, type DiscoveryModuleId } from "./discovery";
 import { isExtra } from "./extra-catalog";
-import { INTEGRATIONS, isIntegration } from "./integrations";
+import { INTEGRATIONS, isIntegration, type IntegrationId } from "./integrations";
 import { FilePicker, defaultFolderLabel, folderDropdown, renderExtraOptions } from "./extra-ui";
 import { renderTodoPreferences } from "./todo-ui";
 import { SYNTAX_EXAMPLES, autoSave, flushFields } from "./option-fields";
@@ -21,7 +21,7 @@ import type QiaomuHomePlugin from "./main";
 import { L, isChinese, t } from "./i18n";
 import { builtinModules, pluginModules, type HomeModule } from "./module-catalog";
 import { connectionSnapshot, connectionsChanged } from "./connections";
-import { moduleOptions, moduleSource } from "./settings";
+import { dataviewInstanceKey, isDataviewInstance, moduleOptions, moduleSource } from "./settings";
 import { moveModule, setModule } from "./layout";
 import { installState, openCommunityPluginSettings, openPluginPage } from "./ecosystem";
 
@@ -67,7 +67,11 @@ export class ModuleLibrary extends Modal {
     const page = this.plugin.settings.pages.find((item) => item.id === this.pageId);
     return [...builtinModules(), { id: "build-extension", title: L("用 AI 开发一个组件", "Build a card with AI"), source: L("乔木 Home 社区", "Qiaomu Home community"), icon: "wand-sparkles", status: "ready",
       description: L("复制开发提示词发给你的 Agent，做好后提交到社区，所有人都能用。", "Copy a prompt for your coding agent, then submit the result so everyone can use it.") }, ...this.community, { id: "import-bookmarks", title: L("导入浏览器书签", "Import browser bookmarks"), source: "Home", icon: "file-input", description: L("预览浏览器导出的 HTML，将网址加入快捷方式。", "Preview exported HTML bookmarks and import shortcuts."), status: "ready" }, { id: "new-shortcuts", title: L("快捷方式", "Shortcuts"), source: "Home", icon: "link", description: L("自定义笔记、文件夹和网址入口。", "Your notes, folders and websites."), status: "ready" },
-      ...(page?.shortcutGroups ?? []).map((group): HomeModule => ({ id: shortcutModuleId(group.id), title: group.name, source: "Home", icon: "link", description: L("已添加的快捷方式", "Saved shortcuts"), status: "ready", preview: group.items.map((item) => item.name || item.target) }))];
+      ...(page?.shortcutGroups ?? []).map((group): HomeModule => ({ id: shortcutModuleId(group.id), title: group.name, source: "Home", icon: "link", description: L("已添加的快捷方式", "Saved shortcuts"), status: "ready", preview: group.items.map((item) => item.name || item.target) })),
+      ...Object.keys(page?.moduleOptions ?? {}).filter(key => isDataviewInstance(key) && key !== "dataview-query").map((key): HomeModule => {
+        const opts = moduleOptions(this.plugin.settings, key, this.pageId);
+        return { id: key, title: opts.customTitle || L("Dataview 卡片", "Dataview card"), source: "Dataview", icon: "database", description: L("把一个标签或文件夹变成笔记、属性或任务卡片。", "Turn a tag or folder into a notes, properties or tasks card."), status: "ready", requires: "dataview" };
+      })];
   }
 
   private async load(): Promise<void> {
@@ -201,14 +205,14 @@ export class ModuleLibrary extends Modal {
     const ready = item.status === "ready";
     if (!ready) card.createDiv({ cls: "qh-library-status", text: t(item.status === "absent" ? "library.needsPlugin" : item.status === "disabled" ? "library.disabled" : "legacy.unavailable") });
     const actions = card.createDiv({ cls: "qh-library-actions" });
-    if (ready && added) {
+    if (ready && added && item.id !== "dataview-query") {
       const remove = actions.createEl("button", { text: L("从此页移除", "Remove") });
       remove.setAttr("aria-label", L("从此页移除{title}", "Remove {title} from this page", { title: item.title }));
       remove.addEventListener("click", () => this.setVisible(item, false, remove));
       return;
     }
     const label = item.community ? (ready ? (L("去插件联动添加卡片", "Add its cards")) : item.status === "disabled" ? t("library.enable") : item.community.store ? t("library.install") : (L("查看仓库", "View repository")))
-      : ready ? t("library.add")
+      : ready ? (item.id === "dataview-query" && added ? L("再添加一个", "Add another") : t("library.add"))
       : item.status === "absent" ? t("library.install") : item.status === "disabled" ? t("library.enable") : t("legacy.retry");
     const button = actions.createEl("button", { cls: ready || item.community ? "mod-cta" : "", text: label });
     if (item.community) {
@@ -219,6 +223,11 @@ export class ModuleLibrary extends Modal {
     button.addEventListener("click", () => {
       if (item.id === "import-bookmarks") { this.close(); new BookmarkImportModal(this.plugin, this.pageId).open(); return; }
       if (item.id === "new-shortcuts") { this.close(); new ShortcutEditorModal(this.plugin, this.pageId).open(); return; }
+      if (item.id === "dataview-query" && added) {
+        const instance: HomeModule = { ...item, id: dataviewInstanceKey() };
+        this.setVisible(instance, true, button);
+        return;
+      }
       if (item.community) {
         // Installed community plugins provide their cards under Integrations; send the user there.
         if (ready) { ModuleLibrary.category = "plugins"; this.query = ""; void this.load(); return; }
@@ -308,41 +317,60 @@ export class ModuleOptionsModal extends Modal {
     const about = builtinModules().find(item => item.id === this.moduleId);
     if (about) this.contentEl.createEl("p", { cls: "qh-options-about", text: about.description });
     if (isExtra(this.moduleId)) { renderExtraOptions(this.contentEl, this.plugin, this.pageId, this.moduleId, persist); return; }
-    if (isIntegration(this.moduleId)) {
-      const integration = INTEGRATIONS[this.moduleId];
+    const isDataview = isDataviewInstance(this.moduleId);
+    if (isIntegration(this.moduleId) || isDataview) {
+      const integrationId = isDataview ? "dataview-query" : this.moduleId;
+      const integration = INTEGRATIONS[integrationId as IntegrationId];
       const state = installState(this.app, integration.plugin);
       if (state !== "enabled") new Setting(this.contentEl).setName(L("需要 {pluginName}", "Requires {pluginName}", { pluginName: integration.pluginName }))
         .setDesc(state === "disabled" ? L("已安装但未启用", "Installed but off") : L("尚未安装", "Not installed"))
         .addButton(button => button.setButtonText(state === "disabled" ? L("去启用", "Turn on") : L("安装", "Install")).setCta()
           .onClick(() => state === "disabled" ? openCommunityPluginSettings(this.app) : openPluginPage(integration.plugin)));
-      if (this.moduleId === "dataview-query") {
+      if (isDataview) {
+        const titleSetting = new Setting(this.contentEl).setName(L("卡片标题", "Card title")).setDesc(L("留空则使用默认标题。", "Leave empty to use the default title."));
+        titleSetting.addText(input => { input.setPlaceholder(L("Dataview 卡片", "Dataview card")); input.setValue(options.customTitle ?? ""); autoSave(this.contentEl, titleSetting, input.inputEl, value => persist({ customTitle: value.trim().slice(0, 80) || undefined })); });
+      }
+      if (isDataview) {
         const wrap = this.contentEl.createDiv();
         const render = () => {
           wrap.empty();
           const current = moduleOptions(this.plugin.settings, this.moduleId, this.pageId);
           const view = current.view ?? "notes", sourceKind = current.sourceKind ?? "all";
-          new Setting(wrap).setName(L("显示内容", "Content")).setDesc(L("把符合条件的笔记、属性或任务放到卡片上。", "Show matching notes, properties, or tasks on the card."))
-            .addDropdown(dropdown => dropdown.addOptions({ notes: L("笔记列表", "Notes"), table: L("属性表格", "Property table"), tasks: L("任务", "Tasks") })
-              .setValue(view).onChange(value => { void persist({ view: value as "table" | "tasks" }); render(); }));
+          if (sourceKind !== "custom") {
+            new Setting(wrap).setName(L("显示内容", "Content")).setDesc(L("把符合条件的笔记、属性或任务放到卡片上。", "Show matching notes, properties, or tasks on the card."))
+              .addDropdown(dropdown => dropdown.addOptions({ notes: L("笔记列表", "Notes"), table: L("属性表格", "Property table"), tasks: L("任务", "Tasks") })
+                .setValue(view).onChange(value => { void persist({ view: value as "table" | "tasks" }); render(); }));
+          }
           new Setting(wrap).setName(L("范围", "Scope"))
-            .addDropdown(dropdown => dropdown.addOptions({ all: L("整个知识库", "Whole vault"), tag: L("带某个标签的笔记", "Notes with a tag"), folder: L("某个文件夹", "A folder") })
-              .setValue(sourceKind).onChange(value => { void persist({ sourceKind: value as "tag" | "folder" }); render(); }));
+            .addDropdown(dropdown => dropdown.addOptions({ all: L("整个知识库", "Whole vault"), tag: L("带某个标签的笔记", "Notes with a tag"), folder: L("某个文件夹", "A folder"), custom: L("自定义语句", "Custom query") })
+              .setValue(sourceKind).onChange(value => { void persist({ sourceKind: value as "tag" | "folder" | "custom" }); render(); }));
+          if (sourceKind === "custom") {
+            const setting = new Setting(wrap).setName(L("DQL 查询语句", "DQL query")).setDesc(L("直接输入 Dataview 查询语句，支持 LIST、TABLE、TASK 和 CALENDAR。", "Enter a raw Dataview query. Supports LIST, TABLE, TASK and CALENDAR."));
+            setting.settingEl.addClass("qh-dql-setting");
+            setting.addTextArea(input => {
+              input.setPlaceholder(L('例如：TABLE status, due FROM #项目 SORT due ASC', 'e.g. TABLE status, due FROM #project SORT due ASC'));
+              input.setValue(current.customDql ?? "");
+              input.inputEl.addClass("qh-dql-input");
+              input.inputEl.rows = 5;
+              autoSave(this.contentEl, setting, input.inputEl, value => persist({ customDql: value.slice(0, 2000) }));
+            });
+          }
           if (sourceKind === "tag") {
             const setting = new Setting(wrap).setName(L("标签", "Tag")).setDesc(L("填笔记上已有的标签，不用带 # 号。", "A tag your notes already use, without the #."));
             setting.addText(input => { input.setPlaceholder(L("例如：项目", "e.g. project")); input.setValue(current.sourceValue ?? ""); autoSave(this.contentEl, setting, input.inputEl, value => persist({ sourceValue: value })); });
           }
           if (sourceKind === "folder") folderDropdown(wrap, this.plugin, L("文件夹", "Folder"), L("整个知识库", "Whole vault"), current.sourceValue ?? "", value => { void persist({ sourceValue: value }); });
-          if (view === "table") {
+          if (sourceKind !== "custom" && view === "table") {
             const setting = new Setting(wrap).setName(L("显示哪些属性", "Properties to show")).setDesc(L("笔记属性里的字段名，用逗号分隔。留空则按笔记列表显示。", "Frontmatter property names, comma separated. Empty falls back to notes."));
             setting.addText(input => { input.setPlaceholder(L("例如：状态, 截止", "e.g. status, due")); input.setValue(current.fields ?? ""); autoSave(this.contentEl, setting, input.inputEl, value => persist({ fields: value })); });
           }
-          if (view === "tasks") new Setting(wrap).setName(L("只看未完成", "Only unfinished")).addToggle(toggle => toggle.setValue(current.onlyOpen ?? true).onChange(value => { void persist({ onlyOpen: value }); }));
-          new Setting(wrap).setName(L("排序", "Sort")).addDropdown(dropdown => dropdown.addOptions({ mtime: L("最近修改优先", "Recently edited first"), ctime: L("最近创建优先", "Recently created first"), name: L("按名称", "By name") })
+          if (sourceKind !== "custom" && view === "tasks") new Setting(wrap).setName(L("只看未完成", "Only unfinished")).addToggle(toggle => toggle.setValue(current.onlyOpen ?? true).onChange(value => { void persist({ onlyOpen: value }); }));
+          if (sourceKind !== "custom") new Setting(wrap).setName(L("排序", "Sort")).addDropdown(dropdown => dropdown.addOptions({ mtime: L("最近修改优先", "Recently edited first"), ctime: L("最近创建优先", "Recently created first"), name: L("按名称", "By name") })
             .setValue(current.sortBy ?? "mtime").onChange(value => { void persist({ sortBy: value as "ctime" | "name" }); }));
         };
         render();
       }
-      if (["dataview-query", "kanban-boards", "excalidraw-drawings", "omnisearch", "quickadd-actions"].includes(this.moduleId)) new Setting(this.contentEl).setName(t("layout.count"))
+      if (isDataview || ["kanban-boards", "excalidraw-drawings", "omnisearch", "quickadd-actions"].includes(this.moduleId)) new Setting(this.contentEl).setName(t("layout.count"))
         .addDropdown(dropdown => dropdown.addOptions(Object.fromEntries(Array.from({ length: 6 }, (_, i) => [String(i + 1), String(i + 1)])))
           .setValue(String(moduleOptions(this.plugin.settings, this.moduleId, this.pageId).limit)).onChange(value => { void persist({ limit: Number(value) }); }));
       return;
