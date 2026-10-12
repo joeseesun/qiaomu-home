@@ -4,7 +4,7 @@ import type QiaomuHomePlugin from "./main";
 import { cardAction, fieldRow } from "./card-ui";
 import { installState, openCommunityPluginSettings, openPluginPage, runCommand, type InstallState } from "./ecosystem";
 import { L } from "./i18n";
-import { moduleOptions, type ModuleOptions } from "./settings";
+import { isDataviewInstance, moduleOptions, type ModuleOptions } from "./settings";
 import { INTEGRATIONS, type IntegrationId } from "./integration-catalog";
 export { INTEGRATIONS, isIntegration, type IntegrationId } from "./integration-catalog";
 
@@ -60,12 +60,13 @@ export function kanbanSummary(markdown: string): { lanes: number; cards: number;
   return { lanes, cards, open };
 }
 
-export function renderIntegration(parent: HTMLElement, plugin: QiaomuHomePlugin, id: IntegrationId, pageId: string): void {
-  const app = plugin.app, config = INTEGRATIONS[id], options = moduleOptions(plugin.settings, id, pageId);
+export function renderIntegration(parent: HTMLElement, plugin: QiaomuHomePlugin, id: IntegrationId | string, pageId: string): void {
+  const effectiveId: IntegrationId = isDataviewInstance(id) ? "dataview-query" : id as IntegrationId;
+  const app = plugin.app, config = INTEGRATIONS[effectiveId], options = moduleOptions(plugin.settings, id, pageId);
   const card = parent.createDiv({ cls: "qh-card" }); card.dataset.module = id;
   const head = card.createDiv({ cls: "qh-card-head" });
   setIcon(head.createSpan({ cls: "qh-card-icon" }), config.icon);
-  head.createSpan({ cls: "qh-card-title", text: L(config.zh, config.en) });
+  head.createSpan({ cls: "qh-card-title", text: options.customTitle || L(config.zh, config.en) });
   const state = installState(app, config.plugin);
   if (state !== "enabled") { renderPluginGuide(card, app, { pluginId: config.plugin, pluginName: config.pluginName, pitch: L(config.description, config.descriptionEn), state, repo: config.repo }); return; }
   const body = card.createDiv({ cls: "qh-native-preview" });
@@ -100,13 +101,24 @@ export function renderIntegration(parent: HTMLElement, plugin: QiaomuHomePlugin,
     return;
   }
 
-  if (id === "dataview-query") {
+  if (effectiveId === "dataview-query") {
     const dataview = pluginInstance<{ api?: DataviewApiLike }>(app, "dataview")?.api;
     if (!dataview) { message(L("Dataview 还在建立索引，稍后刷新", "Dataview is still indexing")); return; }
     const query = dataviewQuery(options);
     if (query.render === "native") {
       if (typeof dataview.execute !== "function") { message(L("请把 Dataview 插件更新到新版本", "Update the Dataview plugin to a newer version")); return; }
       const host = body.createDiv({ cls: "qh-dataview" });
+      // Dataview renders internal links as <a class="internal-link">; Home's ItemView does not
+      // handle them automatically, so we intercept clicks and open the note in the Home tab.
+      host.addEventListener("click", (event) => {
+        const anchor = (event.target as HTMLElement).closest?.("a.internal-link") as HTMLAnchorElement | null;
+        if (!anchor) return;
+        event.preventDefault();
+        const href = anchor.dataset.href ?? anchor.getAttribute("href") ?? "";
+        if (!href) return;
+        const file = app.metadataCache.getFirstLinkpathDest(href, "");
+        if (file) void openFromHome(plugin, card, file, event);
+      });
       // Dataview renders a live-updating view and cleans up when the card DOM is removed.
       void Promise.resolve(dataview.execute(query.source, host, plugin, "")).catch(() => {
         if (card.isConnected) { host.empty(); host.createDiv({ cls: "qh-card-empty", text: L("查询失败", "Query failed") }); }

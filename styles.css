@@ -420,6 +420,8 @@
 .qh-dataview .table-view-table > tbody > tr > td { padding-block: 4px; border-bottom: 1px solid var(--background-modifier-border); }
 .qh-dataview .table-view-table > tbody > tr:last-child > td { border-bottom: none; }
 .qh-dataview ul.task-list-basic-item, .qh-dataview ul.contains-task-list { margin-block: 2px; padding-inline-start: 18px; }
+.qh-dataview a.internal-link { cursor: pointer; text-decoration-line: underline; text-decoration-style: dotted; text-underline-offset: 2px; }
+.qh-dataview a.internal-link:hover { text-decoration-style: solid; }
 .qh-native-line { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--qh-text); font-size: 13px; line-height: 1.6; }
 .qh-native-scope { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 3px 0; color: var(--qh-faint); font-size: 12px; }
 .qh-root .qh-native-open { margin: 6px 0 2px; padding: 4px 0; border: 0; background: transparent; box-shadow: none; color: var(--qh-muted); font-size: 12px; cursor: pointer; }

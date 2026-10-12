@@ -60,6 +60,8 @@ export interface ModuleOptions {
   onlyOpen?: boolean;
   /** Dataview card: result order. Unset means recent edits first. */
   sortBy?: "mtime" | "ctime" | "name";
+  /** User-defined card title; overrides the default when set. */
+  customTitle?: string;
 }
 export const DEFAULT_MODULE_OPTIONS: ModuleOptions = { visible: true, limit: 3 };
 
@@ -285,6 +287,16 @@ export function moduleOptions(settings: HomeSettings, id: string, pageId?: strin
 const OPT_IN = new Set([...Object.keys(PRODUCTIVITY_MODULES), ...Object.keys(EXTRA_MODULES), ...Object.keys(INTEGRATIONS), ...Object.keys(DISCOVERY_MODULES),
   "todo", "beginner-plugins", "daily-preview", "recently-modified", "review-note", "inbox-preview", "daily-focus", "countdown"]);
 
+/** Creates a unique module key for an extra Dataview card instance. */
+export function dataviewInstanceKey(): string {
+  return `dataview:${crypto.randomUUID().slice(0, 8)}`;
+}
+
+/** Returns `true` when the module key refers to a Dataview card instance (original or extra). */
+export function isDataviewInstance(key: string): boolean {
+  return key === "dataview-query" || key.startsWith("dataview:");
+}
+
 export function sectionKey(source: string, section: string): string {
   return `section:${encodeURIComponent(source)}:${encodeURIComponent(section)}`;
 }
@@ -345,6 +357,7 @@ function normalizeModules(value: unknown): Record<string, ModuleOptions> {
       ...(typeof candidate.fields === "string" ? { fields: candidate.fields.slice(0, 200) } : {}),
       ...(typeof candidate.onlyOpen === "boolean" ? { onlyOpen: candidate.onlyOpen } : {}),
       ...(candidate.sortBy === "ctime" || candidate.sortBy === "name" ? { sortBy: candidate.sortBy } : {}),
+      ...(typeof candidate.customTitle === "string" && candidate.customTitle.trim() ? { customTitle: candidate.customTitle.trim().slice(0, 80) } : {}),
       visible: typeof candidate.visible === "boolean" ? candidate.visible : true,
       limit: typeof candidate.limit === "number" && Number.isFinite(candidate.limit)
         ? Math.min(6, Math.max(1, Math.floor(candidate.limit))) : 3,
