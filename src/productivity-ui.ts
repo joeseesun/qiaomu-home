@@ -7,6 +7,7 @@ import type QiaomuHomePlugin from "./main";
 import { L, t } from "./i18n";
 import { localDay, moduleOptions } from "./settings";
 import { PRODUCTIVITY_MODULES, type ProductivityId } from "./productivity-catalog";
+import { renderQuadrantBody } from "./quadrant-ui";
 import { eligibleNote, focusRemaining, inFolder, taskProgress } from "./productivity-data";
 import { dailyExcerpt } from "./home-native-modules";
 import { dailyOptions, todayPath, ensureParent, ensureTodayNote } from "./today";
@@ -67,6 +68,13 @@ export function renderProductivity(parent: HTMLElement, plugin: QiaomuHomePlugin
   setIcon(head.createSpan({ cls: "qh-card-icon" }), config.icon);
   head.createSpan({ cls: "qh-card-title", text: L(config.zh, config.en) });
   const body = card.createDiv({ cls: "qh-native-preview" });
+  
+  // 四象限模块：直接在 body 里填充内容
+  if (id === "quadrant") {
+    body.empty();
+    renderQuadrantBody(body, plugin);
+    return;
+  }
   const message = (text: string) => body.createDiv({ cls: "qh-card-empty", text });
   const button = (parent: HTMLElement, text: string, run: () => void, icon?: string, primary = false) => cardAction(parent, text, run, icon, primary);
   const open = (file: TFile, line?: number, event?: MouseEvent | KeyboardEvent) => void openFromHome(plugin, card, file, event, line);
