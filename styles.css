@@ -1490,3 +1490,34 @@ body:has(.workspace-leaf.mod-active > .workspace-leaf-content:is(
   background-color: transparent;
   background-image: var(--qiaomu-divider-paint);
 }
+
+/* Quadrant tasks: shared vault state, compact cards and keyboard-native controls. */
+.qh-quadrant { container-type: inline-size; color: var(--qh-text, var(--text-normal)); }
+.qh-quadrant .qh-q-add-form input, .qh-quadrant .qh-q-select, .qh-quadrant .qh-q-add-btn { color: var(--qh-text, var(--text-normal)); background: var(--qh-field, var(--background-primary)); border: 1px solid var(--qh-border, var(--background-modifier-border)); border-radius: 6px; box-shadow: none; }
+.qh-quadrant :is(input, select, button):focus-visible { outline: 1px solid var(--qh-focus, var(--interactive-accent)); outline-offset: 2px; }
+.qh-quadrant .qh-q-add-form { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.qh-quadrant .qh-q-add-form input { flex: 1 1 100%; width: 100%; min-width: 0; }
+.qh-quadrant .qh-q-select { flex: 1; min-width: 0; max-width: 100%; }
+.qh-quadrant .qh-q-add-btn { flex: 0 0 32px; padding: 6px; }
+.qh-quadrant .qh-q-add-btn svg, .qh-quadrant .qh-q-dot svg { width: 16px; height: 16px; }
+.qh-quadrant .qh-q-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.qh-quadrant .qh-q-cell { min-width: 0; padding: 10px; border: 1px solid var(--qh-border, var(--background-modifier-border)); border-radius: 8px; background: var(--qh-field, var(--background-secondary)); }
+.qh-quadrant .qh-q-head { display: flex; align-items: center; gap: 5px; margin-bottom: 8px; font-size: 11px; font-weight: 600; color: var(--qh-text, var(--text-normal)); }
+.qh-quadrant .qh-q-dot { display: flex; flex-shrink: 0; }
+.qh-quadrant .qh-q-cell-q1 .qh-q-dot { color: var(--color-red); }
+.qh-quadrant .qh-q-cell-q2 .qh-q-dot { color: var(--color-blue); }
+.qh-quadrant .qh-q-cell-q3 .qh-q-dot { color: var(--color-orange); }
+.qh-quadrant .qh-q-cell-q4 .qh-q-dot { color: var(--qh-muted, var(--text-muted)); }
+.qh-quadrant .qh-q-count { margin-left: auto; color: var(--qh-muted, var(--text-muted)); }
+.qh-quadrant .qh-q-item, .qh-ui .qh-q-history-row { display: flex; align-items: flex-start; gap: 5px; margin-top: 6px; }
+.qh-quadrant .qh-q-task-label { display: flex; flex: 1; align-items: flex-start; gap: 6px; min-width: 0; font-size: 12px; }
+.qh-quadrant .qh-q-task-label input { flex-shrink: 0; margin: 3px 0 0; }
+.qh-quadrant .qh-q-item-text, .qh-ui .qh-q-item-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.qh-quadrant .qh-q-del-btn { flex-shrink: 0; padding: 2px; }
+.qh-quadrant .qh-q-empty { font-size: 12px; color: var(--qh-muted, var(--text-muted)); }
+.qh-quadrant .qh-q-more, .qh-quadrant .qh-q-footer-btn { height: auto; margin-top: 8px; padding: 3px 0; border: 0; box-shadow: none; background: transparent; color: var(--qh-muted, var(--text-muted)); font-size: 12px; white-space: normal; }
+.qh-quadrant .qh-q-footer { text-align: right; }
+.qh-ui .qh-q-history-title { margin: 18px 0 8px; font-size: 14px; }
+@container (max-width: 270px) {
+  .qh-quadrant .qh-q-grid { grid-template-columns: minmax(0, 1fr); }
+}
