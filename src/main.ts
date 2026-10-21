@@ -10,6 +10,7 @@ import { HomeSettingTab } from "./settings-tab";
 import { HOME_VIEW_TYPE, HomeView } from "./view";
 import { WallpaperService } from "./wallpaper/service";
 import { currentFocusText } from "./daily-focus";
+import type { QuadrantTask } from "./quadrant-data";
 
 /** Two soft tones, synthesized so no audio file ships with the plugin. */
 function playChime(): void {
@@ -163,11 +164,24 @@ export default class QiaomuHomePlugin extends Plugin {
 
   async saveSettings(options: { rerender?: boolean } = {}): Promise<void> {
     const snapshot = structuredClone(this.settings);
-    const save = this.saveQueue.catch(() => {}).then(() => this.saveData(snapshot));
+    // A queued settings snapshot may predate a successful quadrant edit.
+    const save = this.saveQueue.catch(() => {}).then(() => this.saveData({ ...snapshot, quadrant: structuredClone(this.settings.quadrant) }));
     this.saveQueue = save;
     await save;
     setLanguage(this.settings.language);
     if (options.rerender !== false) this.eachView((view) => view.render());
+  }
+
+  /** Serialize task edits with settings saves; publish state only after it reaches disk. */
+  async updateQuadrantTasks(change: (tasks: QuadrantTask[]) => QuadrantTask[]): Promise<void> {
+    const save = this.saveQueue.catch(() => {}).then(async () => {
+      const quadrant = { tasks: change(structuredClone(this.settings.quadrant.tasks)) };
+      await this.saveData({ ...structuredClone(this.settings), quadrant });
+      this.settings.quadrant = quadrant;
+    });
+    this.saveQueue = save;
+    await save;
+    this.eachView(view => view.render());
   }
 
   /** Opens this plugin's page in Obsidian settings. */

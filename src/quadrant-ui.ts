@@ -1,96 +1,67 @@
-import { Modal, setIcon } from "obsidian";
+import { Modal, Notice, setIcon } from "obsidian";
 import type QiaomuHomePlugin from "./main";
-import { L } from "./i18n";
+import { L, t } from "./i18n";
+import { guardFormComposition } from "./input-ui";
+import type { Quadrant, QuadrantTask } from "./quadrant-data";
 
-type Quadrant = "q1" | "q2" | "q3" | "q4";
-
-interface Task {
-  id: string;
-  text: string;
-  quadrant: Quadrant;
-  completed: boolean;
-  createdAt: number;
-  completedAt: number | null;
-}
-
-const QUADRANT_META: Record<Quadrant, { zh: string; en: string; icon: string; color: string }> = {
-  q1: { zh: "重要紧急", en: "Urgent & Important", icon: "siren", color: "#e74c3c" },
-  q2: { zh: "重要不紧急", en: "Important", icon: "target", color: "#3498db" },
-  q3: { zh: "紧急不重要", en: "Urgent", icon: "alarm-clock", color: "#f39c12" },
-  q4: { zh: "不重要不紧急", en: "Not urgent", icon: "circle", color: "#95a5a6" },
+const QUADRANT_META: Record<Quadrant, { zh: string; en: string; icon: string }> = {
+  q1: { zh: "重要紧急", en: "Urgent & important", icon: "siren" },
+  q2: { zh: "重要不紧急", en: "Important, not urgent", icon: "target" },
+  q3: { zh: "紧急不重要", en: "Urgent, not important", icon: "alarm-clock" },
+  q4: { zh: "不重要不紧急", en: "Neither urgent nor important", icon: "circle" },
 };
-
-let tasks: Task[] = [];
-
-async function loadTasks(plugin: QiaomuHomePlugin): Promise<void> {
-  try {
-    const data: any = await (plugin as any).loadData?.();
-    if (data?.quadrant?.tasks) tasks = data.quadrant.tasks;
-  } catch (e) {}
-}
-
-async function saveTasks(plugin: QiaomuHomePlugin): Promise<void> {
-  try {
-    const all: any = await (plugin as any).loadData?.() ?? {};
-    all.quadrant = { tasks };
-    await (plugin as any).saveData?.(all);
-  } catch (e) {}
-}
+const QUADRANTS = Object.keys(QUADRANT_META) as Quadrant[];
 
 class QuadrantHistoryModal extends Modal {
+  private saving = false;
+
   constructor(private plugin: QiaomuHomePlugin, private refresh: () => void) {
     super(plugin.app);
     this.modalEl.addClass("qh-ui");
   }
 
-  async onOpen(): Promise<void> {
+  onOpen(): void {
     this.setTitle(L("已完成任务", "Completed tasks"));
     const { contentEl } = this;
     contentEl.empty();
-
-    const completed = tasks.filter(t => t.completed);
-    if (completed.length === 0) {
-      contentEl.createDiv({ cls: "qh-empty", text: L("暂无已完成任务", "No completed tasks") });
+    const completed = this.plugin.settings.quadrant.tasks.filter(task => task.completed)
+      .sort((a, b) => (b.completedAt ?? b.createdAt) - (a.completedAt ?? a.createdAt));
+    if (!completed.length) {
+      contentEl.createDiv({ cls: "qh-card-empty", text: L("暂无已完成任务", "No completed tasks") });
       return;
     }
 
     const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const yesterday = today - 86400000;
-    const weekStart = today - (now.getDay() === 0 ? 6 : now.getDay() - 1) * 86400000;
-
-    const groups: [string, Task[]][] = [
-      [L("今天", "Today"), []],
-      [L("昨天", "Yesterday"), []],
-      [L("本周", "This week"), []],
-      [L("更早", "Earlier"), []],
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+    const weekStart = new Date(today); weekStart.setDate(today.getDate() - (now.getDay() || 7) + 1);
+    const groups: [string, QuadrantTask[]][] = [
+      [L("今天", "Today"), []], [L("昨天", "Yesterday"), []],
+      [L("本周", "This week"), []], [L("更早", "Earlier"), []],
     ];
-
-    completed.forEach(t => {
-      if (!t.completedAt) return;
-      if (t.completedAt >= today) groups[0][1].push(t);
-      else if (t.completedAt >= yesterday) groups[1][1].push(t);
-      else if (t.completedAt >= weekStart) groups[2][1].push(t);
-      else groups[3][1].push(t);
-    });
-
-    groups.forEach(([label, gTasks]) => {
-      if (gTasks.length === 0) return;
-      contentEl.createEl("h3", { cls: "qh-history-group-title", text: `${label} (${gTasks.length})` });
-      gTasks.forEach(task => {
-        const row = contentEl.createDiv({ cls: "qh-history-row" });
-        row.createSpan({ cls: "qh-history-text", text: task.text });
-        const restoreBtn = row.createEl("button", { cls: "qh-icon-button", attr: { "aria-label": L("恢复", "Restore") } });
-        setIcon(restoreBtn, "rotate-ccw");
-        restoreBtn.onclick = async () => {
-          task.completed = false;
-          task.completedAt = null;
-          await saveTasks(this.plugin);
-          this.refresh();
-          this.close();
-        };
-      });
-    });
+    for (const task of completed) {
+      const at = task.completedAt ?? task.createdAt;
+      groups[at >= today.getTime() ? 0 : at >= yesterday.getTime() ? 1 : at >= weekStart.getTime() ? 2 : 3][1].push(task);
+    }
+    for (const [label, tasks] of groups) {
+      if (!tasks.length) continue;
+      contentEl.createEl("h3", { cls: "qh-q-history-title", text: `${label} (${tasks.length})` });
+      for (const task of tasks) {
+        const row = contentEl.createDiv({ cls: "qh-q-history-row" });
+        row.createSpan({ cls: "qh-q-item-text", text: task.text });
+        const restore = row.createEl("button", { cls: "qh-icon-button", attr: { "aria-label": L("恢复 {v}", "Restore {v}", { v: task.text }) } });
+        setIcon(restore, "rotate-ccw");
+        restore.addEventListener("click", () => {
+          if (this.saving) return;
+          this.saving = true;
+          restore.disabled = true;
+          void this.plugin.updateQuadrantTasks(current => current.map(item => item.id === task.id ? { ...item, completed: false, completedAt: null } : item))
+            .then(() => { this.refresh(); this.close(); })
+            .catch(() => { new Notice(t("layout.saveFailed")); })
+            .finally(() => { this.saving = false; restore.disabled = false; });
+        });
+      }
+    }
   }
 
   onClose(): void { this.contentEl.empty(); }
@@ -98,121 +69,83 @@ class QuadrantHistoryModal extends Modal {
 
 export function renderQuadrantBody(body: HTMLElement, plugin: QiaomuHomePlugin): void {
   let currentQuad: Quadrant = "q1";
+  let saving = false;
+  const expanded = new Set<Quadrant>();
+  body.addClass("qh-quadrant");
 
-  function renderAll() {
-    body.empty();
-
-    // 1. 顶部：添加任务（极简风格，一行搞定）
-    const form = body.createEl("form", { cls: "qh-q-add-form" });
-    const input = form.createEl("input", {
-      attr: { type: "text", placeholder: L("添加任务…", "Add task…") },
-    });
-    // 自定义下拉组件
-    const selectBtn = form.createEl("button", { cls: "qh-q-select-btn", type: "button" });
-    selectBtn.textContent = L(QUADRANT_META[currentQuad].zh, QUADRANT_META[currentQuad].en);
-    const dropdown = form.createDiv({ cls: "qh-q-dropdown" });
-    dropdown.style.display = "none";
-    (Object.keys(QUADRANT_META) as Quadrant[]).forEach(q => {
-      const item = dropdown.createDiv({ cls: "qh-q-dropdown-item" });
-      item.textContent = L(QUADRANT_META[q].zh, QUADRANT_META[q].en);
-      item.addEventListener("click", () => {
-        currentQuad = q;
-        selectBtn.textContent = L(QUADRANT_META[q].zh, QUADRANT_META[q].en);
-        dropdown.style.display = "none";
-      });
-    });
-    selectBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      dropdown.style.display = dropdown.style.display === "none" ? "block" : "none";
-    });
-    document.addEventListener("click", (e) => {
-      if (!form.contains(e.target as Node)) {
-        dropdown.style.display = "none";
-      }
-    });
-
-    const submit = form.createEl("button", { type: "submit", cls: "qh-q-add-btn", attr: { "aria-label": L("添加", "Add") } });
-    setIcon(submit, "plus");
-
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const text = input.value.trim();
-      if (!text) return;
-      tasks.unshift({
-        id: `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        text,
-        quadrant: currentQuad,
-        completed: false,
-        createdAt: Date.now(),
-        completedAt: null,
-      });
-      await saveTasks(plugin);
-      input.value = "";
-      renderAll();
-    });
-
-    updateTaskList();
+  function commit(change: (tasks: QuadrantTask[]) => QuadrantTask[], afterSave: () => void = () => {}): void {
+    if (saving) return;
+    saving = true;
+    const controls = body.querySelectorAll<HTMLInputElement | HTMLButtonElement | HTMLSelectElement>("input, button, select");
+    controls.forEach(control => { control.disabled = true; });
+    void plugin.updateQuadrantTasks(change).then(() => {
+      afterSave();
+      if (body.isConnected) renderAll();
+    }).catch(() => {
+      // Keep the input draft and the last persisted task state available for retry.
+      body.querySelectorAll<HTMLInputElement>('input[type="checkbox"]').forEach(checkbox => { checkbox.checked = false; });
+      new Notice(t("layout.saveFailed"));
+    }).finally(() => { saving = false; controls.forEach(control => { control.disabled = false; }); });
   }
 
-  function updateTaskList() {
-    // 删掉旧的网格和底部
-    body.querySelectorAll(".qh-q-grid, .qh-q-footer").forEach(el => el.remove());
-
-    // 2. 中部：2×2 四象限网格
-    const grid = body.createDiv({ cls: "qh-q-grid" });
-    const quadrants: Quadrant[] = ["q1", "q2", "q3", "q4"];
-
-    quadrants.forEach((q) => {
-      const meta = QUADRANT_META[q];
-      const qTasks = tasks.filter(t => !t.completed && t.quadrant === q);
-
-      const cell = grid.createDiv({ cls: `qh-q-cell qh-q-cell-${q}` });
-
-      // 象限标题
-      const qHead = cell.createDiv({ cls: "qh-q-head" });
-      setIcon(qHead.createSpan({ cls: "qh-q-dot" }), meta.icon);
-      qHead.createSpan({ cls: "qh-q-label", text: L(meta.zh, meta.en) });
-      if (qTasks.length > 0) {
-        qHead.createSpan({ cls: "qh-q-count", text: String(qTasks.length) });
-      }
-
-      // 任务列表（最多显示 2 条）
-      const list = cell.createDiv({ cls: "qh-q-list" });
-      qTasks.slice(0, 2).forEach(task => {
-        const item = list.createDiv({ cls: "qh-q-item" });
-        const cb = item.createEl("input", { attr: { type: "checkbox" } });
-        cb.addEventListener("change", async () => {
-          task.completed = cb.checked;
-          task.completedAt = cb.checked ? Date.now() : null;
-          await saveTasks(plugin);
-          renderAll();
-        });
-        item.createSpan({ cls: "qh-q-item-text", text: task.text });
-        const delBtn = item.createEl("button", { cls: "qh-q-del-btn", attr: { "aria-label": "删除" } });
-        setIcon(delBtn, "trash");
-        delBtn.addEventListener("click", async () => {
-          tasks = tasks.filter(t => t.id !== task.id);
-          await saveTasks(plugin);
-          renderAll();
-        });
-      });
-
-      if (qTasks.length === 0) {
-        list.createDiv({ cls: "qh-q-empty", text: L("暂无", "—") });
-      } else if (qTasks.length > 2) {
-        list.createDiv({ cls: "qh-q-more", text: L(`+${qTasks.length - 2} 更多`, `+${qTasks.length - 2} more`) });
-      }
+  function renderAll(): void {
+    const draft = body.querySelector<HTMLInputElement>('input[type="text"]')?.value ?? "";
+    body.empty();
+    const tasks = plugin.settings.quadrant.tasks;
+    const form = body.createEl("form", { cls: "qh-q-add-form" });
+    guardFormComposition(form);
+    const input = form.createEl("input", { type: "text", attr: { placeholder: L("添加任务…", "Add task…"), "aria-label": L("任务内容", "Task text") } });
+    input.value = draft;
+    const select = form.createEl("select", { cls: "dropdown qh-q-select", attr: { "aria-label": L("任务象限", "Task quadrant") } });
+    for (const q of QUADRANTS) select.createEl("option", { value: q, text: L(QUADRANT_META[q].zh, QUADRANT_META[q].en) });
+    select.value = currentQuad;
+    select.addEventListener("change", () => { currentQuad = select.value as Quadrant; });
+    const submit = form.createEl("button", { type: "submit", cls: "qh-q-add-btn", attr: { "aria-label": L("添加任务", "Add task") } });
+    setIcon(submit, "plus");
+    form.addEventListener("submit", event => {
+      event.preventDefault();
+      const text = input.value.trim();
+      if (!text || saving) return;
+      const task: QuadrantTask = { id: crypto.randomUUID(), text, quadrant: currentQuad, completed: false, createdAt: Date.now(), completedAt: null };
+      commit(current => [task, ...current], () => { input.value = ""; });
     });
 
-    // 3. 底部：历史入口（极简）
-    const completedCount = tasks.filter(t => t.completed).length;
-    if (completedCount > 0) {
+    const grid = body.createDiv({ cls: "qh-q-grid" });
+    for (const q of QUADRANTS) {
+      const meta = QUADRANT_META[q];
+      const qTasks = tasks.filter(task => !task.completed && task.quadrant === q);
+      const cell = grid.createDiv({ cls: `qh-q-cell qh-q-cell-${q}` });
+      const head = cell.createDiv({ cls: "qh-q-head" });
+      setIcon(head.createSpan({ cls: "qh-q-dot" }), meta.icon);
+      head.createSpan({ cls: "qh-q-label", text: L(meta.zh, meta.en) });
+      if (qTasks.length) head.createSpan({ cls: "qh-q-count", text: String(qTasks.length) });
+      const list = cell.createDiv({ cls: "qh-q-list" });
+      for (const task of expanded.has(q) ? qTasks : qTasks.slice(0, 2)) {
+        const item = list.createDiv({ cls: "qh-q-item" });
+        const label = item.createEl("label", { cls: "qh-q-task-label" });
+        const checkbox = label.createEl("input", { type: "checkbox" });
+        label.createSpan({ cls: "qh-q-item-text", text: task.text });
+        checkbox.addEventListener("change", () => {
+          const completedAt = Date.now();
+          commit(current => current.map(entry => entry.id === task.id ? { ...entry, completed: true, completedAt } : entry));
+        });
+        const remove = item.createEl("button", { cls: "qh-q-del-btn qh-icon-button", attr: { "aria-label": L("删除 {v}", "Delete {v}", { v: task.text }) } });
+        setIcon(remove, "trash");
+        remove.addEventListener("click", () => commit(current => current.filter(entry => entry.id !== task.id)));
+      }
+      if (!qTasks.length) list.createDiv({ cls: "qh-q-empty", text: L("暂无", "—") });
+      if (qTasks.length > 2) {
+        const more = cell.createEl("button", { cls: "qh-q-more", text: expanded.has(q) ? L("收起", "Show less") : L("+{n} 更多", "+{n} more", { n: qTasks.length - 2 }), attr: { "aria-expanded": String(expanded.has(q)) } });
+        more.addEventListener("click", () => { if (expanded.has(q)) expanded.delete(q); else expanded.add(q); renderAll(); });
+      }
+    }
+    const completedCount = tasks.filter(task => task.completed).length;
+    if (completedCount) {
       const footer = body.createDiv({ cls: "qh-q-footer" });
-      const viewBtn = footer.createEl("button", { cls: "qh-q-footer-btn", text: L(`已完成 ${completedCount} 项`, `${completedCount} done`) });
-      viewBtn.onclick = () => new QuadrantHistoryModal(plugin, renderAll).open();
+      const history = footer.createEl("button", { cls: "qh-q-footer-btn", text: L("已完成 {n} 项", "{n} done", { n: completedCount }) });
+      history.addEventListener("click", () => new QuadrantHistoryModal(plugin, () => { if (body.isConnected) renderAll(); }).open());
     }
   }
 
   renderAll();
-  void loadTasks(plugin).then(renderAll);
 }

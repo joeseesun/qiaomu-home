@@ -1,4 +1,5 @@
 import { renderGauge } from "./gauge";
+import { renderQuadrantBody } from "./quadrant-ui";
 import { fillTemplate, templateFileName } from "./quick-tools";
 import { cardAction, fieldRow } from "./card-ui";
 import { renderHabitCard } from "./habits";
@@ -82,6 +83,7 @@ export function renderProductivity(parent: HTMLElement, plugin: QiaomuHomePlugin
   };
   if (config.folder && options.folder) card.createDiv({ cls: "qh-native-scope", text: options.folder });
   const files = () => app.vault.getMarkdownFiles().filter(file => eligibleNote(file.path) && inFolder(file.path, options.folder));
+  if (id === "quadrant") { renderQuadrantBody(body, plugin); return; }
   if (["due-today", "overdue", "project-next", "milestones"].includes(id)) {
     if (id === "project-next" && !options.folder) { message(L("先选择项目笔记所在文件夹", "Choose the folder containing project notes")); button(body, L("选择文件夹", "Choose folder"), configure, "settings-2", true); return; }
     run(async () => {
