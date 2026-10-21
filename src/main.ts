@@ -36,6 +36,8 @@ export default class QiaomuHomePlugin extends Plugin {
   settings: HomeSettings = structuredClone(DEFAULT_SETTINGS);
   wallpaper!: WallpaperService;
   taskIndex!: HomeTaskIndex;
+  /** Tasks the first quadrant build kept in data.json; they move into the chosen note once, then this is cleared. */
+  legacyQuadrantTasks: { text: string; quadrant: string; completed: boolean; completedAt: number | null }[] = [];
   readonly ambient = new AmbientPlayer();
   private completingFocus = false;
   private homeSettingTab!: HomeSettingTab;
@@ -49,6 +51,18 @@ export default class QiaomuHomePlugin extends Plugin {
     // The language decides default page and shortcut names, so it is set before settings are normalized.
     setLanguage((data as { language?: LanguagePreference } | null)?.language ?? "auto");
     this.settings = normalizeSettings(data);
+    // The quadrant card used to keep its tasks here; the note-backed version adopts them on first use.
+    const legacy = (data as { quadrant?: { tasks?: unknown } } | null)?.quadrant?.tasks;
+    if (Array.isArray(legacy)) this.legacyQuadrantTasks = legacy.flatMap((entry) => {
+      const task = entry as { text?: unknown; quadrant?: unknown; completed?: unknown; completedAt?: unknown } | null;
+      if (!task || typeof task.text !== "string" || !task.text.trim()) return [];
+      return [{
+        text: task.text,
+        quadrant: typeof task.quadrant === "string" ? task.quadrant : "q1",
+        completed: task.completed === true,
+        completedAt: typeof task.completedAt === "number" ? task.completedAt : null,
+      }];
+    });
     this.wallpaper = new WallpaperService(this);
     this.taskIndex = new HomeTaskIndex(this.app);
     this.register(() => this.taskIndex.clear());

@@ -399,7 +399,7 @@ export class ModuleOptionsModal extends Modal {
     if (this.moduleId === "due-today") new Setting(this.contentEl).setName(L("同时列出逾期任务", "Include overdue tasks")).setDesc(L("默认在没有「逾期」卡片的页面上开启。", "On by default when this page has no Overdue card."))
       .addToggle(toggle => toggle.setValue(options.includeOverdue ?? !moduleOptions(this.plugin.settings, "overdue", this.pageId).visible).onChange(value => { void persist({ includeOverdue: value }); }));
     if (["due-today", "overdue", "milestones"].includes(this.moduleId)) this.contentEl.createEl("p", { cls: "qh-native-scope", text: L("识别 Tasks 插件的 📅 截止 / ⏳ 计划 / 🛫 开始日期，以及 Dataview 的 [due:: ] 或 (due:: )。启用 Tasks 插件时，勾选会写入完成日期并生成重复任务的下一次。", "Recognizes Tasks 📅 due / ⏳ scheduled / 🛫 start dates and Dataview [due:: ] or (due:: ). With the Tasks plugin on, completing adds the done date and creates the next recurrence.") });
-    if (config?.path) {
+    if (config?.path && this.moduleId !== "quadrant") {
       const setting = new Setting(this.contentEl).setName(this.moduleId === "template-create" ? L("模板笔记", "Template note") : L("来源笔记", "Source note")).setDesc(options.path || L("尚未选择", "Not selected"));
       setting.addButton(button => button.setButtonText(L("选择笔记", "Choose note")).onClick(() => new FilePicker(this.plugin, ["md"], file => { void persist({ path: file.path }).then(() => { setting.setDesc(moduleOptions(this.plugin.settings, this.moduleId, this.pageId).path ?? ""); }); }).open()));
     }
@@ -430,6 +430,20 @@ export class ModuleOptionsModal extends Modal {
       return;
     }
     if (this.moduleId === "template-create") this.contentEl.createEl("p", { text: L("支持 {{title}}、{{date}}、{{time}}，不执行 Templater 脚本。留空文件夹时使用 Obsidian 默认新笔记位置。", "Supports {{title}}, {{date}} and {{time}}; Templater scripts are not executed. An empty folder uses the default new-note location.") });
+    if (this.moduleId === "quadrant") {
+      const setting = new Setting(this.contentEl).setName(L("任务笔记路径", "Task note path"))
+        .setDesc(L("库内 Markdown 路径，例如 Inbox.md 或 Inbox/速记.md。", "A Markdown path in the vault, e.g. Inbox.md."));
+      setting.addText(input => {
+        input.setValue(options.path ?? "");
+        autoSave(this.contentEl, setting, input.inputEl, value => {
+          const next = value.trim();
+          if (next && (!next.toLowerCase().endsWith(".md") || next.startsWith("/") || next.split("/").includes(".."))) throw new Error(L("路径须是库内的 Markdown 文件（.md）", "Path must be a Markdown file inside the vault"));
+          return persist({ path: next });
+        });
+        setting.addButton(button => button.setButtonText(L("选择", "Choose")).onClick(() => new FilePicker(this.plugin, ["md"], file => { input.setValue(file.path); input.inputEl.dispatchEvent(new Event("change")); }).open()));
+      });
+      this.contentEl.createEl("p", { cls: "qh-native-scope", text: L("直接填路径，或用右边的按钮从库里挑一篇；笔记不存在时会新建。四象限任务会保存到这篇笔记里，格式为 `- [ ] 任务内容 #q1`。", "Type a path or pick a note with the button; the note is created if missing. Quadrant tasks are saved to this note in the format `- [ ] task #q1`.") });
+    }
     if (config && !config.count) return;
     if (this.moduleId === "daily-focus") { this.contentEl.createEl("p", { text: L("直接在卡片上编辑今天的重点。", "Edit today's focus directly on the card.") }); return; }
     if (this.moduleId === "review-note") {

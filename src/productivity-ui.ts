@@ -72,7 +72,7 @@ export function renderProductivity(parent: HTMLElement, plugin: QiaomuHomePlugin
   // 四象限模块：直接在 body 里填充内容
   if (id === "quadrant") {
     body.empty();
-    renderQuadrantBody(body, plugin);
+    renderQuadrantBody(body, plugin, options.path ?? "");
     return;
   }
   const message = (text: string) => body.createDiv({ cls: "qh-card-empty", text });
