@@ -283,7 +283,7 @@ export function moduleOptions(settings: HomeSettings, id: string, pageId?: strin
 
 /** Built-in cards never appear on their own, even on pages that show newly discovered plugin sections. */
 const OPT_IN = new Set([...Object.keys(PRODUCTIVITY_MODULES), ...Object.keys(EXTRA_MODULES), ...Object.keys(INTEGRATIONS), ...Object.keys(DISCOVERY_MODULES),
-  "todo", "beginner-plugins", "daily-preview", "recently-modified", "review-note", "inbox-preview", "daily-focus", "countdown"]);
+  "todo", "beginner-plugins", "daily-preview", "recently-modified", "review-note", "inbox-preview", "daily-focus", "countdown", "quadrant"]);
 
 export function sectionKey(source: string, section: string): string {
   return `section:${encodeURIComponent(source)}:${encodeURIComponent(section)}`;
