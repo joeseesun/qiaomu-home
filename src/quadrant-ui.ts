@@ -1,372 +1,182 @@
-import { Modal, setIcon, Notice, TFile } from "obsidian";
+import { Modal, Notice, setIcon } from "obsidian";
 import type QiaomuHomePlugin from "./main";
-import { L } from "./i18n";
+import { L, t } from "./i18n";
+import { guardFormComposition } from "./input-ui";
+import type { Quadrant } from "./quadrant-data";
+import type { NoteTask } from "./quadrant-note";
+import type { QuadrantNote } from "./quadrant-store";
 
-type Quadrant = "q1" | "q2" | "q3" | "q4";
-
-interface Task {
-  id: string;
-  text: string;
-  quadrant: Quadrant;
-  completed: boolean;
-  createdAt: number;
-  completedAt: number | null;
-  /** False for checkbox lines that were already in the note without a #q tag: saving keeps them tag-free. */
-  tagged: boolean;
-}
-
-const QUADRANT_META: Record<Quadrant, { zh: string; en: string; icon: string; color: string }> = {
-  q1: { zh: "重要紧急", en: "Urgent & Important", icon: "siren", color: "#e74c3c" },
-  q2: { zh: "重要不紧急", en: "Important", icon: "target", color: "#3498db" },
-  q3: { zh: "紧急不重要", en: "Urgent", icon: "alarm-clock", color: "#f39c12" },
-  q4: { zh: "不重要不紧急", en: "Not urgent", icon: "circle", color: "#95a5a6" },
+const QUADRANT_META: Record<Quadrant, { zh: string; en: string; icon: string }> = {
+  q1: { zh: "重要紧急", en: "Urgent & important", icon: "siren" },
+  q2: { zh: "重要不紧急", en: "Important, not urgent", icon: "target" },
+  q3: { zh: "紧急不重要", en: "Urgent, not important", icon: "alarm-clock" },
+  q4: { zh: "不重要不紧急", en: "Neither urgent nor important", icon: "circle" },
 };
-
-/** Expanded quadrants, remembered per note so saving a task (which re-renders the card) does not collapse them. */
-const expandedByPath = new Map<string, Set<Quadrant>>();
-
-/** One document listener closes every open quadrant dropdown: bound once per plugin, not once per render. */
-const dismissBound = new WeakSet<QiaomuHomePlugin>();
-function bindDropdownDismiss(plugin: QiaomuHomePlugin): void {
-  if (dismissBound.has(plugin)) return;
-  dismissBound.add(plugin);
-  plugin.registerDomEvent(document, "click", () => {
-    document.querySelectorAll<HTMLElement>(".qh-q-dropdown").forEach(dropdown => dropdown.removeClass("is-open"));
-  });
-}
-
-function newId(): string {
-  return `task_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
-}
-
-/** `2026-10-21` in the local time zone; toISOString would report the previous day before 08:00 at +08:00. */
-function localDate(time: number): string {
-  const date = new Date(time);
-  const pad = (value: number): string => String(value).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-/**
- * Reads the checkbox lines of the note. Lines without a #q tag are kept as they are (they stay untagged when saved)
- * instead of being claimed as quadrant tasks.
- */
-export function parseTasks(content: string): Task[] {
-  const tasks: Task[] = [];
-
-  for (const line of content.split("\n")) {
-    const match = /^\s*[-*]\s+\[([ xX])\]\s+(.+)$/.exec(line);
-    if (!match) continue;
-
-    const completed = match[1].toLowerCase() === "x";
-    let text = match[2];
-
-    // 提取象限标签 #q1 #q2 #q3 #q4
-    const quadrantMatch = /#q([1-4])\b/.exec(text);
-    const quadrant = (quadrantMatch ? `q${quadrantMatch[1]}` : "q1") as Quadrant;
-    text = text.replace(/#q[1-4]\b/g, "").trim();
-
-    // 提取完成日期 ✅ 2024-01-15
-    const completedAtMatch = /✅\s*(\d{4}-\d{2}-\d{2})/.exec(text);
-    const completedAt = completedAtMatch ? new Date(`${completedAtMatch[1]}T00:00:00`).getTime() : null;
-    text = text.replace(/✅\s*\d{4}-\d{2}-\d{2}/g, "").trim();
-
-    tasks.push({
-      id: newId(),
-      text,
-      quadrant,
-      completed,
-      createdAt: Date.now(),
-      completedAt,
-      tagged: quadrantMatch !== null,
-    });
-  }
-
-  return tasks;
-}
-
-/** Writes the note back: tagged tasks carry their quadrant, untagged ones are left without a tag. */
-export function serializeTasks(tasks: Task[]): string {
-  const lines: string[] = ["# 任务四象限", ""];
-  const row = (task: Task): string => {
-    const tag = task.tagged ? ` #${task.quadrant}` : "";
-    if (!task.completed) return `- [ ] ${task.text}${tag}`;
-    return `- [x] ${task.text}${tag} ✅ ${localDate(task.completedAt ?? Date.now())}`;
-  };
-  const section = (title: string, empty: string, rows: Task[]): void => {
-    lines.push(`## ${title}`, "");
-    if (rows.length === 0) lines.push(empty, "");
-    else { rows.forEach(task => lines.push(row(task))); lines.push(""); }
-  };
-
-  section("未完成", "*暂无任务*", tasks.filter(task => !task.completed));
-  section("已完成", "*暂无已完成任务*", tasks.filter(task => task.completed));
-  return lines.join("\n");
-}
-
-async function loadTasksFromFile(plugin: QiaomuHomePlugin, path: string): Promise<Task[]> {
-  try {
-    const file = plugin.app.vault.getAbstractFileByPath(path);
-    if (!(file instanceof TFile)) return [];
-    return parseTasks(await plugin.app.vault.cachedRead(file));
-  } catch {
-    return [];
-  }
-}
-
-async function saveTasksToFile(plugin: QiaomuHomePlugin, path: string, tasks: Task[]): Promise<boolean> {
-  try {
-    const file = plugin.app.vault.getAbstractFileByPath(path);
-    const content = serializeTasks(tasks);
-    if (file instanceof TFile) {
-      await plugin.app.vault.modify(file, content);
-    } else {
-      await plugin.app.vault.create(path, content);
-      new Notice(L("已创建四象限任务笔记", "Quadrant note created"));
-    }
-    return true;
-  } catch {
-    new Notice(L("保存失败", "Save failed"));
-    return false;
-  }
-}
-
-/** Moves tasks left in data.json by the first quadrant build into the note, once. */
-async function migrateLegacyTasks(plugin: QiaomuHomePlugin, path: string, tasks: Task[]): Promise<Task[]> {
-  const legacy = plugin.legacyQuadrantTasks;
-  if (legacy.length === 0) return tasks;
-
-  const known: Quadrant[] = ["q1", "q2", "q3", "q4"];
-  const incoming: Task[] = legacy.map(task => ({
-    id: newId(),
-    text: task.text,
-    quadrant: known.includes(task.quadrant as Quadrant) ? task.quadrant as Quadrant : "q1",
-    completed: task.completed,
-    createdAt: Date.now(),
-    completedAt: task.completedAt,
-    tagged: true,
-  }));
-  const merged = [...incoming, ...tasks];
-  if (!await saveTasksToFile(plugin, path, merged)) return tasks;
-  plugin.legacyQuadrantTasks = [];
-  new Notice(L("已迁移 {v} 个旧四象限任务", "Migrated {v} old quadrant tasks", { v: incoming.length }));
-  return merged;
-}
+const QUADRANTS = Object.keys(QUADRANT_META) as Quadrant[];
 
 class QuadrantHistoryModal extends Modal {
-  constructor(private plugin: QiaomuHomePlugin, private tasks: Task[], private path: string, private refresh: () => void) {
+  private saving = false;
+
+  constructor(private plugin: QiaomuHomePlugin, private note: QuadrantNote, private refresh: (note: QuadrantNote) => void) {
     super(plugin.app);
     this.modalEl.addClass("qh-ui");
   }
 
-  async onOpen(): Promise<void> {
+  onOpen(): void {
     this.setTitle(L("已完成任务", "Completed tasks"));
     const { contentEl } = this;
     contentEl.empty();
-
-    const completed = this.tasks.filter(t => t.completed);
-    if (completed.length === 0) {
-      contentEl.createDiv({ cls: "qh-empty", text: L("暂无已完成任务", "No completed tasks") });
+    const completed = this.note.tasks.filter(task => task.completed)
+      .sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
+    if (!completed.length) {
+      contentEl.createDiv({ cls: "qh-card-empty", text: L("暂无已完成任务", "No completed tasks") });
       return;
     }
 
     const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const yesterday = today - 86400000;
-    const weekStart = today - (now.getDay() === 0 ? 6 : now.getDay() - 1) * 86400000;
-
-    const groups: [string, Task[]][] = [
-      [L("今天", "Today"), []],
-      [L("昨天", "Yesterday"), []],
-      [L("本周", "This week"), []],
-      [L("更早", "Earlier"), []],
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+    const weekStart = new Date(today); weekStart.setDate(today.getDate() - (now.getDay() || 7) + 1);
+    const groups: [string, NoteTask[]][] = [
+      [L("今天", "Today"), []], [L("昨天", "Yesterday"), []],
+      [L("本周", "This week"), []], [L("更早", "Earlier"), []],
     ];
-
-    completed.forEach(t => {
-      if (!t.completedAt) return;
-      if (t.completedAt >= today) groups[0][1].push(t);
-      else if (t.completedAt >= yesterday) groups[1][1].push(t);
-      else if (t.completedAt >= weekStart) groups[2][1].push(t);
-      else groups[3][1].push(t);
-    });
-
-    groups.forEach(([label, gTasks]) => {
-      if (gTasks.length === 0) return;
-      contentEl.createEl("h3", { cls: "qh-history-group-title", text: `${label} (${gTasks.length})` });
-      gTasks.forEach(task => {
-        const row = contentEl.createDiv({ cls: "qh-history-row" });
-        row.createSpan({ cls: "qh-history-text", text: task.text });
-        const restoreBtn = row.createEl("button", { cls: "qh-icon-button", attr: { "aria-label": L("恢复", "Restore") } });
-        setIcon(restoreBtn, "rotate-ccw");
-        restoreBtn.onclick = () => { void (async () => {
-          task.completed = false;
-          task.completedAt = null;
-          await saveTasksToFile(this.plugin, this.path, this.tasks);
-          this.refresh();
-          this.close();
-        })(); };
-      });
-    });
+    for (const task of completed) {
+      const at = task.completedAt ?? 0;
+      groups[at >= today.getTime() ? 0 : at >= yesterday.getTime() ? 1 : at >= weekStart.getTime() ? 2 : 3][1].push(task);
+    }
+    for (const [label, tasks] of groups) {
+      if (!tasks.length) continue;
+      contentEl.createEl("h3", { cls: "qh-q-history-title", text: `${label} (${tasks.length})` });
+      for (const task of tasks) {
+        const row = contentEl.createDiv({ cls: "qh-q-history-row" });
+        row.createSpan({ cls: "qh-q-item-text", text: task.text });
+        const restore = row.createEl("button", { cls: "qh-icon-button", attr: { "aria-label": L("恢复 {v}", "Restore {v}", { v: task.text }) } });
+        setIcon(restore, "rotate-ccw");
+        restore.addEventListener("click", () => {
+          if (this.saving) return;
+          this.saving = true;
+          restore.disabled = true;
+          void this.plugin.quadrantStore.edit(this.note, task, "restore")
+            .then(note => { this.refresh(note); this.close(); })
+            .catch(() => { new Notice(t("layout.saveFailed")); })
+            .finally(() => { this.saving = false; restore.disabled = false; });
+        });
+      }
+    }
   }
 
   onClose(): void { this.contentEl.empty(); }
 }
 
+const expandedByPlugin = new WeakMap<QiaomuHomePlugin, Map<string, Set<Quadrant>>>();
+
 export function renderQuadrantBody(body: HTMLElement, plugin: QiaomuHomePlugin, path: string): void {
-  bindDropdownDismiss(plugin);
   let currentQuad: Quadrant = "q1";
-  let tasks: Task[] = [];
-  /** Resolves once the note has been read (and legacy tasks migrated); adding waits for it so it cannot overwrite. */
-  let ready: Promise<void> = Promise.resolve();
-  const expanded = path ? expandedByPath.get(path) ?? new Set<Quadrant>() : new Set<Quadrant>();
-  if (path) expandedByPath.set(path, expanded);
+  let saving = false;
+  let note: QuadrantNote | undefined;
+  let operation = { text: "", quadrant: "q1", id: "" };
+  let remembered = expandedByPlugin.get(plugin);
+  if (!remembered) expandedByPlugin.set(plugin, remembered = new Map<string, Set<Quadrant>>());
+  let expanded = remembered.get(path);
+  if (!expanded) remembered.set(path, expanded = new Set<Quadrant>());
+  body.addClass("qh-quadrant");
 
-  function renderAll(): void {
-    // 卡片 body 只放这个模块，整体清空即可；设置入口统一走卡片右上角的 ⋯ 菜单。
+  function commit(change: () => Promise<QuadrantNote>, afterSave: () => void = () => {}): void {
+    if (saving) return;
+    saving = true;
+    const controls = body.querySelectorAll<HTMLInputElement | HTMLButtonElement | HTMLSelectElement>("input, button, select");
+    controls.forEach(control => { control.disabled = true; });
+    void change().then(next => {
+      note = next;
+      afterSave();
+      if (body.isConnected) renderAll();
+    }).catch((error: unknown) => {
+      body.querySelectorAll<HTMLInputElement>('input[type="checkbox"]').forEach(checkbox => { checkbox.checked = false; });
+      new Notice(`${t("layout.saveFailed")} ${error instanceof Error ? error.message : ""}`);
+    }).finally(() => { saving = false; controls.forEach(control => { control.disabled = false; }); });
+  }
+
+  async function load(): Promise<void> {
     body.empty();
-
-    // 没有配置路径时，提示去 ⋯ 菜单里选笔记
     if (!path) {
-      body.createDiv({ cls: "qh-card-empty", text: L("点击卡片右上角 ⋯ → 组件设置，选择保存任务的笔记", "Click ⋯ → Card settings to choose a note") });
+      body.createDiv({ cls: "qh-card-empty", text: L("请在模块设置中选择任务笔记。", "Choose a task note in module settings.") });
       return;
     }
-    buildForm();
-    renderGrid();
+    body.createDiv({ cls: "qh-card-empty", text: L("正在读取…", "Loading…") });
+    try { note = await plugin.quadrantStore.read(path); renderAll(); }
+    catch {
+      body.empty();
+      body.createDiv({ cls: "qh-card-empty", text: L("读取失败；未更改笔记。", "Could not read the note; nothing was changed.") });
+      const retry = body.createEl("button", { text: L("重试", "Retry") });
+      retry.addEventListener("click", () => { void load(); });
+    }
   }
 
-  function buildForm(): void {
+  function renderAll(): void {
+    const draft = body.querySelector<HTMLInputElement>('input[type="text"]')?.value ?? "";
+    body.empty();
+    if (!note) return;
+    const tasks = note.tasks;
+    if (plugin.settings.quadrant.tasks.length) {
+      const migrate = body.createEl("button", { cls: "qh-q-migrate", text: L("导入 {n} 个旧任务到此笔记", "Import {n} old tasks into this note", { n: plugin.settings.quadrant.tasks.length }) });
+      migrate.addEventListener("click", () => commit(async () => { await plugin.migrateQuadrantTasks(path); return plugin.quadrantStore.read(path); }));
+    }
+    const reload = body.createEl("button", { cls: "qh-q-reload qh-q-more", text: L("刷新笔记", "Reload note") });
+    reload.addEventListener("click", () => commit(() => plugin.quadrantStore.read(path)));
     const form = body.createEl("form", { cls: "qh-q-add-form" });
-    const input = form.createEl("input", {
-      attr: { type: "text", placeholder: L("添加任务…", "Add task…") },
-    });
-    // 自定义下拉组件
-    const selectWrapper = form.createDiv({ cls: "qh-q-select-wrapper" });
-    const selectBtn = selectWrapper.createEl("button", { cls: "qh-q-select-btn", type: "button" });
-    selectBtn.textContent = L(QUADRANT_META[currentQuad].zh, QUADRANT_META[currentQuad].en);
-    const dropdown = selectWrapper.createDiv({ cls: "qh-q-dropdown" });
-    (Object.keys(QUADRANT_META) as Quadrant[]).forEach(q => {
-      const item = dropdown.createDiv({ cls: "qh-q-dropdown-item" });
-      item.textContent = L(QUADRANT_META[q].zh, QUADRANT_META[q].en);
-      item.addEventListener("click", () => {
-        currentQuad = q;
-        selectBtn.textContent = L(QUADRANT_META[q].zh, QUADRANT_META[q].en);
-        dropdown.removeClass("is-open");
-      });
-    });
-    selectBtn.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      dropdown.toggleClass("is-open", !dropdown.hasClass("is-open"));
-    });
-
-    const submit = form.createEl("button", { type: "submit", cls: "qh-q-add-btn", attr: { "aria-label": L("添加", "Add") } });
+    guardFormComposition(form);
+    const input = form.createEl("input", { type: "text", attr: { placeholder: L("添加任务…", "Add task…"), "aria-label": L("任务内容", "Task text") } });
+    input.value = draft;
+    const select = form.createEl("select", { cls: "dropdown qh-q-select", attr: { "aria-label": L("任务象限", "Task quadrant") } });
+    for (const q of QUADRANTS) select.createEl("option", { value: q, text: L(QUADRANT_META[q].zh, QUADRANT_META[q].en) });
+    select.value = currentQuad;
+    select.addEventListener("change", () => { currentQuad = select.value as Quadrant; });
+    const submit = form.createEl("button", { type: "submit", cls: "qh-q-add-btn", attr: { "aria-label": L("添加任务", "Add task") } });
     setIcon(submit, "plus");
-    form.addEventListener("submit", (event) => {
+    form.addEventListener("submit", event => {
       event.preventDefault();
-      void addTask(input);
+      const text = input.value.trim();
+      if (!text || saving) return;
+      if (operation.text !== text || operation.quadrant !== currentQuad) operation = { text, quadrant: currentQuad, id: crypto.randomUUID() };
+      commit(() => plugin.quadrantStore.add(note!, text, currentQuad, operation.id), () => { input.value = ""; operation.text = ""; });
     });
-  }
 
-  async function addTask(input: HTMLInputElement): Promise<void> {
-    const text = input.value.trim();
-    if (!text) return;
-    await ready;
-    tasks.unshift({
-      id: newId(),
-      text,
-      quadrant: currentQuad,
-      completed: false,
-      createdAt: Date.now(),
-      completedAt: null,
-      tagged: true,
-    });
-    await saveTasksToFile(plugin, path, tasks);
-    input.value = "";
-    renderAll();
-  }
-
-  async function toggleTask(task: Task, checked: boolean): Promise<void> {
-    task.completed = checked;
-    task.completedAt = checked ? Date.now() : null;
-    await saveTasksToFile(plugin, path, tasks);
-    renderAll();
-  }
-
-  async function deleteTask(task: Task): Promise<void> {
-    tasks = tasks.filter(entry => entry.id !== task.id);
-    await saveTasksToFile(plugin, path, tasks);
-    renderAll();
-  }
-
-  function appendTask(list: HTMLElement, task: Task): void {
-    const item = list.createDiv({ cls: "qh-q-item" });
-    const checkbox = item.createEl("input", { attr: { type: "checkbox" } });
-    checkbox.addEventListener("change", () => { void toggleTask(task, checkbox.checked); });
-    item.createSpan({ cls: "qh-q-item-text", text: task.text });
-    const delBtn = item.createEl("button", { cls: "qh-q-del-btn", attr: { "aria-label": L("删除", "Delete") } });
-    setIcon(delBtn, "trash");
-    delBtn.addEventListener("click", () => { void deleteTask(task); });
-  }
-
-  function renderGrid(): void {
-    body.querySelectorAll(".qh-q-grid, .qh-q-footer").forEach(element => element.remove());
     const grid = body.createDiv({ cls: "qh-q-grid" });
-
-    (["q1", "q2", "q3", "q4"] as Quadrant[]).forEach((q) => {
+    for (const q of QUADRANTS) {
       const meta = QUADRANT_META[q];
-      const open = tasks.filter(task => !task.completed && task.quadrant === q);
-      const isOpen = expanded.has(q);
-
+      const qTasks = tasks.filter(task => !task.completed && task.quadrant === q);
       const cell = grid.createDiv({ cls: `qh-q-cell qh-q-cell-${q}` });
-      const qHead = cell.createDiv({ cls: "qh-q-head" });
-      setIcon(qHead.createSpan({ cls: "qh-q-dot" }), meta.icon);
-      qHead.createSpan({ cls: "qh-q-label", text: L(meta.zh, meta.en) });
-      if (open.length > 0) qHead.createSpan({ cls: "qh-q-count", text: String(open.length) });
-
+      const head = cell.createDiv({ cls: "qh-q-head" });
+      setIcon(head.createSpan({ cls: "qh-q-dot" }), meta.icon);
+      head.createSpan({ cls: "qh-q-label", text: L(meta.zh, meta.en) });
+      if (qTasks.length) head.createSpan({ cls: "qh-q-count", text: String(qTasks.length) });
       const list = cell.createDiv({ cls: "qh-q-list" });
-      (isOpen ? open : open.slice(0, 2)).forEach(task => appendTask(list, task));
-
-      if (open.length === 0) {
-        list.createDiv({ cls: "qh-q-empty", text: L("暂无", "—") });
-      } else if (open.length > 2) {
-        // A plain element, not a <button>: Obsidian's button rule (button:not(.clickable-icon)) outranks a single-class
-        // card rule and would paint a filled pill here, while this should read as a quiet text link.
-        const more = list.createDiv({
-          cls: "qh-q-more",
-          text: isOpen ? L("收起", "Show less") : L("再看 {v} 项", "Show {v} more", { v: open.length - 2 }),
+      for (const task of expanded!.has(q) ? qTasks : qTasks.slice(0, 2)) {
+        const item = list.createDiv({ cls: "qh-q-item" });
+        const label = item.createEl("label", { cls: "qh-q-task-label" });
+        const checkbox = label.createEl("input", { type: "checkbox" });
+        label.createSpan({ cls: "qh-q-item-text", text: task.text });
+        checkbox.addEventListener("change", () => {
+          commit(() => plugin.quadrantStore.edit(note!, task, "complete"));
         });
-        more.setAttr("role", "button");
-        more.setAttr("tabindex", "0");
-        more.setAttr("aria-expanded", String(isOpen));
-        const toggle = (): void => {
-          if (isOpen) expanded.delete(q);
-          else expanded.add(q);
-          renderGrid();
-        };
-        more.addEventListener("click", toggle);
-        more.addEventListener("keydown", (event) => {
-          if (event.key !== "Enter" && event.key !== " ") return;
-          event.preventDefault();
-          toggle();
-        });
+        const remove = item.createEl("button", { cls: "qh-q-del-btn qh-icon-button", attr: { "aria-label": L("删除 {v}", "Delete {v}", { v: task.text }) } });
+        setIcon(remove, "trash");
+        remove.addEventListener("click", () => commit(() => plugin.quadrantStore.edit(note!, task, "delete")));
       }
-    });
-
-    renderFooter();
-  }
-
-  function renderFooter(): void {
+      if (!qTasks.length) list.createDiv({ cls: "qh-q-empty", text: L("暂无", "—") });
+      if (qTasks.length > 2) {
+        const more = cell.createEl("button", { cls: "qh-q-more", text: expanded!.has(q) ? L("收起", "Show less") : L("+{n} 更多", "+{n} more", { n: qTasks.length - 2 }), attr: { "aria-expanded": String(expanded!.has(q)) } });
+        more.addEventListener("click", () => { if (expanded!.has(q)) expanded!.delete(q); else expanded!.add(q); renderAll(); });
+      }
+    }
     const completedCount = tasks.filter(task => task.completed).length;
-    if (completedCount === 0) return;
-    const footer = body.createDiv({ cls: "qh-q-footer" });
-    const viewBtn = footer.createEl("button", { cls: "qh-q-footer-btn", text: L(`已完成 ${completedCount} 项`, `${completedCount} done`) });
-    viewBtn.onclick = () => new QuadrantHistoryModal(plugin, tasks, path, renderAll).open();
+    if (completedCount) {
+      const footer = body.createDiv({ cls: "qh-q-footer" });
+      const history = footer.createEl("button", { cls: "qh-q-footer-btn", text: L("已完成 {n} 项", "{n} done", { n: completedCount }) });
+      history.addEventListener("click", () => new QuadrantHistoryModal(plugin, note!, next => { note = next; if (body.isConnected) renderAll(); }).open());
+    }
   }
 
-  renderAll();
-  if (path) {
-    ready = loadTasksFromFile(plugin, path).then(async loaded => {
-      tasks = await migrateLegacyTasks(plugin, path, loaded);
-      renderAll();
-    });
-  }
+  void load();
 }

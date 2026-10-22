@@ -1,3 +1,4 @@
+import { validateQuadrantPath } from "./quadrant-store";
 import { BookmarkImportModal } from "./bookmark-import";
 import { PRODUCTIVITY_MODULES, type ProductivityId } from "./productivity-catalog";
 import { DISCOVERY_MODULES, defaultSites, parseSearchTemplates, type DiscoveryModuleId } from "./discovery";
@@ -437,7 +438,7 @@ export class ModuleOptionsModal extends Modal {
         input.setValue(options.path ?? "");
         autoSave(this.contentEl, setting, input.inputEl, value => {
           const next = value.trim();
-          if (next && (!next.toLowerCase().endsWith(".md") || next.startsWith("/") || next.split("/").includes(".."))) throw new Error(L("路径须是库内的 Markdown 文件（.md）", "Path must be a Markdown file inside the vault"));
+          if (next) validateQuadrantPath(next, this.plugin.app.vault.configDir);
           return persist({ path: next });
         });
         setting.addButton(button => button.setButtonText(L("选择", "Choose")).onClick(() => new FilePicker(this.plugin, ["md"], file => { input.setValue(file.path); input.inputEl.dispatchEvent(new Event("change")); }).open()));

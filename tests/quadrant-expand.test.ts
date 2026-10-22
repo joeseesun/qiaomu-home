@@ -1,9 +1,11 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { TFile } from "obsidian";
+import { vaultHarness } from "./quadrant-harness";
+import { setLanguage } from "../src/i18n";
 import { renderQuadrantBody } from "../src/quadrant-ui";
 
 /** The few Obsidian DOM helpers the card uses; the real app patches them onto HTMLElement. */
 beforeAll(() => {
+  setLanguage("zh");
   const proto = HTMLElement.prototype as unknown as Record<string, unknown>;
   const apply = <T extends HTMLElement>(element: T, options?: { cls?: string; text?: string; attr?: Record<string, string> }): T => {
     if (options?.cls) element.className = options.cls;
@@ -29,18 +31,8 @@ beforeAll(() => {
 });
 
 function fakePlugin(content: string) {
-  const file = new TFile();
-  Object.assign(file, { path: "Home/Tasks.md" });
-  return {
-    app: { vault: {
-      getAbstractFileByPath: () => file,
-      cachedRead: async () => content,
-      modify: async () => undefined,
-      create: async () => undefined,
-    } },
-    registerDomEvent: () => undefined,
-    legacyQuadrantTasks: [] as { text: string; quadrant: string; completed: boolean; completedAt: number | null }[],
-  };
+  const h = vaultHarness(content);
+  return { app: h.app, quadrantStore: h.store, settings: { quadrant: { tasks: [] } } };
 }
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -49,7 +41,7 @@ describe("quadrant card", () => {
   it("shows two tasks, then all of them after clicking the more button", async () => {
     const body = document.createElement("div");
     const plugin = fakePlugin(["- [ ] a #q1", "- [ ] b #q1", "- [ ] c #q1", "- [ ] d #q1"].join("\n"));
-    renderQuadrantBody(body, plugin as never, "Home/Tasks.md");
+    renderQuadrantBody(body, plugin as never, "Tasks.md");
     await settle();
 
     const items = () => body.querySelectorAll(".qh-q-cell-q1 .qh-q-item").length;
@@ -67,8 +59,20 @@ describe("quadrant card", () => {
   it("keeps a task without a quadrant tag in the first quadrant", async () => {
     const body = document.createElement("div");
     const plugin = fakePlugin("- [ ] 别人的任务");
-    renderQuadrantBody(body, plugin as never, "Home/Tasks.md");
+    renderQuadrantBody(body, plugin as never, "Tasks.md");
     await settle();
     expect(body.querySelectorAll(".qh-q-cell-q1 .qh-q-item").length).toBe(1);
   });
+  it("remembers expansion on re-render per plugin and note, without sharing it with another vault", async () => {
+    const content = "- [ ] a #q1\n- [ ] b #q1\n- [ ] c #q1";
+    const plugin = fakePlugin(content), body = document.createElement('div');
+    renderQuadrantBody(body, plugin as never, 'Tasks.md'); await settle();
+    body.querySelector<HTMLButtonElement>('.qh-q-cell-q1 .qh-q-more')!.click();
+    renderQuadrantBody(body, plugin as never, 'Tasks.md'); await settle();
+    expect(body.querySelectorAll('.qh-q-item')).toHaveLength(3);
+    const other = document.createElement('div');
+    renderQuadrantBody(other, fakePlugin(content) as never, 'Tasks.md'); await settle();
+    expect(other.querySelectorAll('.qh-q-item')).toHaveLength(2);
+  });
+
 });

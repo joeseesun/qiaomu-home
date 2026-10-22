@@ -10,6 +10,7 @@ import { HomeSettingTab } from "./settings-tab";
 import { HOME_VIEW_TYPE, HomeView } from "./view";
 import { WallpaperService } from "./wallpaper/service";
 import { currentFocusText } from "./daily-focus";
+import { QuadrantNoteStore, validateQuadrantPath } from "./quadrant-store";
 
 /** Two soft tones, synthesized so no audio file ships with the plugin. */
 function playChime(): void {
@@ -36,8 +37,7 @@ export default class QiaomuHomePlugin extends Plugin {
   settings: HomeSettings = structuredClone(DEFAULT_SETTINGS);
   wallpaper!: WallpaperService;
   taskIndex!: HomeTaskIndex;
-  /** Tasks the first quadrant build kept in data.json; they move into the chosen note once, then this is cleared. */
-  legacyQuadrantTasks: { text: string; quadrant: string; completed: boolean; completedAt: number | null }[] = [];
+  quadrantStore!: QuadrantNoteStore;
   readonly ambient = new AmbientPlayer();
   private completingFocus = false;
   private homeSettingTab!: HomeSettingTab;
@@ -51,18 +51,7 @@ export default class QiaomuHomePlugin extends Plugin {
     // The language decides default page and shortcut names, so it is set before settings are normalized.
     setLanguage((data as { language?: LanguagePreference } | null)?.language ?? "auto");
     this.settings = normalizeSettings(data);
-    // The quadrant card used to keep its tasks here; the note-backed version adopts them on first use.
-    const legacy = (data as { quadrant?: { tasks?: unknown } } | null)?.quadrant?.tasks;
-    if (Array.isArray(legacy)) this.legacyQuadrantTasks = legacy.flatMap((entry) => {
-      const task = entry as { text?: unknown; quadrant?: unknown; completed?: unknown; completedAt?: unknown } | null;
-      if (!task || typeof task.text !== "string" || !task.text.trim()) return [];
-      return [{
-        text: task.text,
-        quadrant: typeof task.quadrant === "string" ? task.quadrant : "q1",
-        completed: task.completed === true,
-        completedAt: typeof task.completedAt === "number" ? task.completedAt : null,
-      }];
-    });
+    this.quadrantStore = new QuadrantNoteStore(this.app);
     this.wallpaper = new WallpaperService(this);
     this.taskIndex = new HomeTaskIndex(this.app);
     this.register(() => this.taskIndex.clear());
@@ -177,11 +166,31 @@ export default class QiaomuHomePlugin extends Plugin {
 
   async saveSettings(options: { rerender?: boolean } = {}): Promise<void> {
     const snapshot = structuredClone(this.settings);
-    const save = this.saveQueue.catch(() => {}).then(() => this.saveData(snapshot));
+    // A queued settings snapshot may predate a successful quadrant edit.
+    const save = this.saveQueue.catch(() => {}).then(() => this.saveData({ ...snapshot, quadrant: structuredClone(this.settings.quadrant) }));
     this.saveQueue = save;
     await save;
     setLanguage(this.settings.language);
     if (options.rerender !== false) this.eachView((view) => view.render());
+  }
+
+  /** Keep the legacy backup until both the note and its migration receipt are durable. */
+  async migrateQuadrantTasks(path: string): Promise<void> {
+    const save = this.saveQueue.catch(() => {}).then(async () => {
+      const previous = this.settings.quadrant;
+      if (!previous.tasks.length) return;
+      validateQuadrantPath(path, this.app.vault.configDir);
+      if (previous.migrationPath && previous.migrationPath !== path) throw new Error(`Finish importing into ${previous.migrationPath} first.`);
+      const reserved = { ...structuredClone(previous), migrationPath: path };
+      await this.saveData({ ...structuredClone(this.settings), quadrant: reserved });
+      this.settings.quadrant = reserved;
+      await this.quadrantStore.migrate(path, reserved.tasks);
+      const quadrant = { tasks: [] };
+      await this.saveData({ ...structuredClone(this.settings), quadrant });
+      this.settings.quadrant = quadrant;
+    });
+    this.saveQueue = save;
+    await save;
   }
 
   /** Opens this plugin's page in Obsidian settings. */
