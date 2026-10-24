@@ -254,9 +254,10 @@ export class HomeSettingTab extends PluginSettingTab {
     const release=containerEl.createDiv({cls:"qh-settings-release"});
     release.createSpan({text:L("当前版本", "Current version")});release.createEl("strong",{text:`v${this.plugin.manifest.version}`});
     const links=containerEl.createDiv({cls:"qh-settings-links"});
-    for(const [icon,label,url] of [["history",L("更新日志", "Changelog"),`${REPO}/releases`],["bug",L("反馈问题", "Report an issue"),`${REPO}/issues/new`],["book-open",L("使用说明", "Help"),`${REPO}#readme`]]){
+    for(const [icon,label,url] of [["bug",L("反馈问题", "Report an issue"),`${REPO}/issues/new`],["book-open",L("使用说明", "Help"),`${REPO}#readme`]]){
       const link=links.createEl("a",{href:url,attr:{target:"_blank",rel:"noopener noreferrer"}});setIcon(link.createSpan({attr:{"aria-hidden":"true"}}),icon);link.createSpan({text:label});
     }
+    this.plugin.updateNotes.addButton(links);
     new Setting(containerEl).setName(L("插件接入", "Plugin integration")).setDesc(createFragment(f=>{f.createEl("a",{text:L("乔木 Home 协议", "Qiaomu Home protocol"),href:`${REPO}/blob/main/docs/qiaomu-home-protocol.md`});}));
     const support = containerEl.createDiv({cls:"qh-settings-support"});
     for (const [icon, title, caption, url] of [

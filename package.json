@@ -1,17 +1,18 @@
 {
   "name": "qiaomu-home",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "A calm start page for Obsidian: search, create, and continue what you were reading, listening to, or asking.",
   "license": "GPL-3.0-only",
   "private": true,
   "scripts": {
     "dev": "node esbuild.config.mjs --watch",
-    "build": "tsc --noEmit && node esbuild.config.mjs",
+    "build": "node scripts/test-update-notes.mjs && tsc --noEmit && node esbuild.config.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "test": "vitest run",
     "i18n:strings": "node scripts/i18n-strings.mjs",
-    "check": "npm run lint && npm run test && npm run build"
+    "check": "npm run lint && npm run test && npm run build",
+    "test:update-notes": "node scripts/test-update-notes.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.4.1",
