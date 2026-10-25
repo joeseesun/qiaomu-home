@@ -251,3 +251,57 @@ describe('durable legacy migration', () => {
     } finally { await rm(directory, { recursive: true, force: true }); }
   });
 });
+
+describe('isolated disk vault acceptance', () => {
+  // Mirrors the disposable-vault run in docs/quadrant-validation.md with real files and injected I/O failures.
+  it('keeps the note byte-identical through failed reads/writes, migrates once, and respects sync edits', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'qh-quadrant-vault-')), data = join(directory, 'data.json'), path = join(directory, 'Tasks.md');
+    const original = '﻿---\r\ntitle: Keep\r\n---\r\nProse [[link]]\r\n\r\n- [ ] Parent #q1\r\n    - [ ] Child #q4\r\n```\r\n- [ ] code\r\n```\r\nNo final newline';
+    const failures = { read: 0, write: 0 };
+    try {
+      await writeFile(path, original);
+      const h = await harness({ quadrant: { tasks: [task('old'), task('done', true)] } }, original);
+      h.plugin.saveData = vi.fn(async value => { await writeFile(data, JSON.stringify(value)); });
+      h.vault.read.mockImplementation(async () => { if (failures.read && failures.read--) throw Error('EIO'); return readFile(path, 'utf8'); });
+      h.vault.process.mockImplementation(async (_, transform) => {
+        const next = transform(await readFile(path, 'utf8'));
+        if (failures.write && failures.write--) throw Error('ENOSPC');
+        await writeFile(path, next); return next;
+      });
+      const disk = () => readFile(path, 'utf8'), backup = async () => JSON.parse(await readFile(data, 'utf8')).quadrant.tasks;
+
+      h.plugin.settings.customHeadline = 'Ordinary save'; await h.plugin.saveSettings();
+      expect(await backup()).toHaveLength(2); expect(await disk()).toBe(original);
+
+      failures.write = 1;
+      await expect(h.plugin.migrateQuadrantTasks('Tasks.md')).rejects.toThrow('ENOSPC');
+      expect(await backup()).toHaveLength(2); expect(await disk()).toBe(original);
+      await h.plugin.migrateQuadrantTasks('Tasks.md');
+      expect(await backup()).toEqual([]);
+      const migrated = await disk();
+      expect(migrated.startsWith(`${original}\r\n`)).toBe(true); expect(migrated.slice(original.length)).not.toMatch(/(^|[^\r])\n/);
+
+      failures.read = 1;
+      let body = await render(h.plugin);
+      expect(body.querySelector('form')).toBeNull(); expect(await disk()).toBe(migrated);
+      body.querySelector<HTMLButtonElement>('button')!.click();
+      await vi.waitFor(() => expect(body.querySelector('form')).not.toBeNull());
+
+      failures.write = 1; submit(body, 'Draft'); await done(body);
+      expect(await disk()).toBe(migrated); expect(body.querySelector<HTMLInputElement>('input[type="text"]')!.value).toBe('Draft');
+      submit(body, 'Draft'); await done(body);
+      expect((await disk()).match(/Draft/g)).toHaveLength(1);
+
+      // Another device rewrites the note between the card's read and the next edit.
+      const synced = (await disk()).replace('Prose', 'Prose edited elsewhere') + '- [ ] Remote #q2\r\n';
+      await writeFile(path, synced);
+      body.querySelector<HTMLInputElement>('.qh-q-cell-q1 input[type="checkbox"]')!.click(); await done(body);
+      expect((await disk()).replace(/- \[x\] Parent #q1 ✅ \d{4}-\d{2}-\d{2}/, '- [ ] Parent #q1')).toBe(synced);
+
+      const restarted = await harness(JSON.parse(await readFile(data, 'utf8')), await disk());
+      body = await render(restarted.plugin);
+      expect(restarted.plugin.settings.quadrant.tasks).toEqual([]); expect(body.querySelector('.qh-q-migrate')).toBeNull();
+      expect(parseTasks(await disk()).map(t => t.text)).toEqual(['Parent', 'Child', 'Task old', 'Task done', 'Draft', 'Remote']);
+    } finally { await rm(directory, { recursive: true, force: true }); }
+  });
+});
