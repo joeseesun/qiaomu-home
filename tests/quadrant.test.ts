@@ -15,7 +15,7 @@ vi.mock("obsidian", async importOriginal => {
     SuggestModal: class {},
     Notice: vi.fn(),
     Plugin: class {
-      constructor(public app: unknown) {}
+      constructor(public app: unknown, public manifest: unknown) {}
       register() {} registerEvent() {} registerView() {} addRibbonIcon() {} addCommand() {} addSettingTab() {}
       registerInterval(timer: number) { window.clearInterval(timer); }
     },
@@ -70,7 +70,7 @@ async function harness(initial: unknown = null, content: string | null = '') {
   let stored = copy(initial);
   const h = vaultHarness(content);
   const create = async () => {
-    const plugin = new QiaomuHomePlugin(h.app as never, {} as never);
+    const plugin = new QiaomuHomePlugin(h.app as never, { id: "qiaomu-home", name: "Qiaomu Home", version: "0.9.1" } as never);
     plugin.loadData = vi.fn(async () => copy(stored));
     plugin.saveData = vi.fn(async data => { stored = copy(data); });
     await plugin.onload();

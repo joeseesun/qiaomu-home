@@ -1,3 +1,6 @@
+import { UpdateNotes } from './update-notes';
+import { UPDATE_ENTRIES } from './update-notes-release';
+import { currentLanguage as updateLocale } from './i18n';
 import { watchPaneDividers } from "./pane-dividers";
 import { HomeTaskIndex } from "./task-index";
 import { AmbientPlayer } from "./ambient";
@@ -34,6 +37,7 @@ function playChime(): void {
 const CLAIM_DELAY_MS = 40;
 
 export default class QiaomuHomePlugin extends Plugin {
+  updateNotes!: UpdateNotes;
   settings: HomeSettings = structuredClone(DEFAULT_SETTINGS);
   wallpaper!: WallpaperService;
   taskIndex!: HomeTaskIndex;
@@ -114,6 +118,7 @@ export default class QiaomuHomePlugin extends Plugin {
       },
     });
     this.homeSettingTab = new HomeSettingTab(this.app, this);
+    this.updateNotes = new UpdateNotes(this, UPDATE_ENTRIES, updateLocale);
     this.addSettingTab(this.homeSettingTab);
 
     this.app.workspace.onLayoutReady(() => {

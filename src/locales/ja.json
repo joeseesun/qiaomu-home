@@ -91,7 +91,6 @@
   "Change folder": "フォルダーを変更",
   "Change home wallpaper": "ホームの壁紙を変更",
   "Change source": "ソースを変更",
-  "Changelog": "更新履歴",
   "Chat with your vault using local agents or model APIs": "ローカルエージェントやモデル API で保管庫と対話",
   "Check off": "チェック",
   "Check-ins write true/false properties named after each habit in today's daily note, creating it from your template if needed. Removing a habit keeps past records.": "チェックインすると、今日のデイリーノートに各習慣名の true/false プロパティを書き込みます（必要ならテンプレートから作成）。習慣を削除しても過去の記録は残ります。",
