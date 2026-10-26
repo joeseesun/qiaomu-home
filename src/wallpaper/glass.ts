@@ -28,8 +28,8 @@ export function shadeStops(dim: number): Array<[number, string]> {
   return [[0, `rgba(0,0,0,${dim * 0.75})`], [0.55, `rgba(0,0,0,${dim})`], [1, `rgba(0,0,0,${dim + 0.15})`]];
 }
 
-function loadImage(doc: Document, url: string): Promise<HTMLImageElement> {
-  const img = doc.createElement("img");
+function loadImage(url: string): Promise<HTMLImageElement> {
+  const img = createEl("img");
   // Vault files (app://) and Unsplash both allow CORS, so the canvas stays readable.
   img.crossOrigin = "anonymous";
   img.decoding = "async";
@@ -38,10 +38,10 @@ function loadImage(doc: Document, url: string): Promise<HTMLImageElement> {
 }
 
 /** Paints photo + shade, extends the edges so the blur does not darken them, then blurs. */
-function bake(doc: Document, img: HTMLImageElement, box: GlassSize, dim: number): Promise<Blob | null> {
+function bake(img: HTMLImageElement, box: GlassSize, dim: number): Promise<Blob | null> {
   const width = Math.max(1, Math.ceil(box.width * SCALE)), height = Math.max(1, Math.ceil(box.height * SCALE));
   const radius = BLUR_PX * SCALE, pad = Math.ceil(radius * 3);
-  const source = doc.createElement("canvas");
+  const source = createEl("canvas");
   source.width = width + pad * 2; source.height = height + pad * 2;
   const ctx = source.getContext("2d");
   if (!ctx) return Promise.resolve(null);
@@ -56,7 +56,7 @@ function bake(doc: Document, img: HTMLImageElement, box: GlassSize, dim: number)
   ctx.drawImage(source, pad + width - 1, pad, 1, height, pad + width, pad, pad, height);
   ctx.drawImage(source, 0, pad, width + pad * 2, 1, 0, 0, width + pad * 2, pad);
   ctx.drawImage(source, 0, pad + height - 1, width + pad * 2, 1, 0, pad + height, width + pad * 2, pad);
-  const out = doc.createElement("canvas");
+  const out = createEl("canvas");
   out.width = width; out.height = height;
   const blurred = out.getContext("2d");
   if (!blurred || !("filter" in blurred)) return Promise.resolve(null);
@@ -128,7 +128,7 @@ export class GlassLayer {
     const view = this.root.ownerDocument.defaultView ?? window;
     const next = view.URL.createObjectURL(blob);
     // Decode before switching so the swap is a single paint.
-    try { await loadImage(this.root.ownerDocument, next); } catch { /* the background still loads it */ }
+    try { await loadImage(next); } catch { /* the background still loads it */ }
     if (generation !== this.generation) { view.URL.revokeObjectURL(next); return; }
     if (this.objectUrl) view.URL.revokeObjectURL(this.objectUrl);
     this.objectUrl = next;
@@ -139,7 +139,7 @@ export class GlassLayer {
   }
 
   private async render(url: string, dim: number, box: GlassSize): Promise<Blob | null> {
-    try { return await bake(this.root.ownerDocument, await loadImage(this.root.ownerDocument, url), box, dim); }
+    try { return await bake(await loadImage(url), box, dim); }
     catch { return null; }
   }
 
