@@ -58,6 +58,14 @@ export function rankNotes(query: string, candidates: NoteCandidate[], recent: st
       extension: file.extension, score: best, ...(alias && alias !== file.basename ? { alias } : {}),
     });
   }
+  // A short query matches most of a large vault. Only scores that can reach the top `limit` need the
+  // locale-aware sort; the order of what is returned is exactly that of sorting everything.
+  if (matches.length > limit) {
+    const scores = Float64Array.from(matches, (match) => match.score).sort();
+    const cutoff = scores[scores.length - limit];
+    return matches.filter((match) => match.score >= cutoff)
+      .sort((a, b) => b.score - a.score || a.title.localeCompare(b.title)).slice(0, limit);
+  }
   return matches.sort((a, b) => b.score - a.score || a.title.localeCompare(b.title)).slice(0, limit);
 }
 

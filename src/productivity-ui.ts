@@ -383,17 +383,23 @@ export function renderProductivity(parent: HTMLElement, plugin: QiaomuHomePlugin
     for (const file of orphans) note(file);
   }
 }
+/** Writes only real changes: an unchanged write still invalidates style and repaints the card. */
+function setTextIf(el: HTMLElement, text: string): void { if (el.textContent !== text) el.setText(text); }
+function setAttrIf(el: Element, name: string, value: string): void { if (el.getAttribute(name) !== value) el.setAttribute(name, value); }
+
 export function paintFocus(root: HTMLElement, plugin: QiaomuHomePlugin): void {
+  // Runs every second on every Home page: pages without a focus timer stop here.
+  if (!root.querySelector("[data-focus-clock], [data-focus-status], [data-focus-toggle], [data-focus-today]")) return;
   const session = plugin.settings.focusSession, remaining = focusRemaining(session);
   const total = session.durationMinutes * 60000;
   const seconds = Math.ceil(remaining / 1000), running = session.endAt > 0 && remaining > 0;
   const paused = !running && remaining > 0 && remaining < total;
   const idle = !running && !paused && remaining > 0;
   const onBreak = session.kind === "break";
-  root.querySelectorAll<HTMLElement>("[data-focus-clock]").forEach(el => el.setText(`${Math.floor(seconds / 60).toString().padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`));
-  root.querySelectorAll<HTMLElement>("[data-focus-status]").forEach(el => el.setText(remaining === 0 ? (onBreak ? L("休息结束", "Break over") : L("完成，休息一下", "Done — take a break"))
+  root.querySelectorAll<HTMLElement>("[data-focus-clock]").forEach(el => setTextIf(el, `${Math.floor(seconds / 60).toString().padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`));
+  root.querySelectorAll<HTMLElement>("[data-focus-status]").forEach(el => setTextIf(el, remaining === 0 ? (onBreak ? L("休息结束", "Break over") : L("完成，休息一下", "Done — take a break"))
     : running ? (onBreak ? L("休息中", "On a break") : L("专注中", "Focusing")) : paused ? L("已暂停", "Paused") : L("{durationMinutes} 分钟", "{durationMinutes} min", { durationMinutes: session.durationMinutes })));
-  root.querySelectorAll<HTMLElement>("[data-focus-label]").forEach(el => { el.setText(session.label && !onBreak && (running || paused) ? session.label : ""); el.toggleClass("is-hidden", !(session.label && !onBreak && (running || paused))); });
+  root.querySelectorAll<HTMLElement>("[data-focus-label]").forEach(el => { setTextIf(el, session.label && !onBreak && (running || paused) ? session.label : ""); el.toggleClass("is-hidden", !(session.label && !onBreak && (running || paused))); });
   root.querySelectorAll<HTMLSelectElement>("[data-focus-target]").forEach(el => { el.toggleClass("is-hidden", !idle && !(remaining === 0 && onBreak)); if (el.value !== session.label && [...el.options].some(option => option.value === session.label)) el.value = session.label; });
   const state = running ? "running" : remaining === 0 ? "done" : paused ? "paused" : "idle";
   root.querySelectorAll<HTMLElement>("[data-focus-toggle]").forEach(el => {
@@ -406,18 +412,18 @@ export function paintFocus(root: HTMLElement, plugin: QiaomuHomePlugin): void {
   });
   const circumference = 2 * Math.PI * 52;
   root.querySelectorAll<SVGCircleElement>("[data-focus-arc]").forEach(el => {
-    el.setAttribute("stroke-dasharray", String(circumference));
-    el.setAttribute("stroke-dashoffset", String(circumference * (total ? remaining / total : 0)));
+    setAttrIf(el, "stroke-dasharray", String(circumference));
+    setAttrIf(el, "stroke-dashoffset", String(circumference * (total ? remaining / total : 0)));
   });
   root.querySelectorAll<HTMLElement>(".qh-focus-dial").forEach(el => { el.toggleClass("is-running", running); el.toggleClass("is-done", remaining === 0); el.toggleClass("is-break", onBreak); });
   root.querySelectorAll<HTMLElement>("[data-focus-presets]").forEach(el => {
     el.toggleClass("is-hidden", !idle && !(remaining === 0 && onBreak));
-    el.querySelectorAll<HTMLElement>("[data-minutes]").forEach(chip => chip.setAttr("aria-pressed", String(Number(chip.dataset.minutes) === session.focusMinutes)));
+    el.querySelectorAll<HTMLElement>("[data-minutes]").forEach(chip => setAttrIf(chip, "aria-pressed", String(Number(chip.dataset.minutes) === session.focusMinutes)));
   });
   root.querySelectorAll<HTMLElement>("[data-focus-break]").forEach(el => el.toggleClass("is-hidden", !(remaining === 0 && !onBreak)));
   root.querySelectorAll<HTMLElement>("[data-focus-reset]").forEach(el => el.toggleClass("is-hidden", idle));
   const stats = plugin.settings.focusStats, todayStats = stats.day === localDay() ? stats : { count: 0, minutes: 0 };
-  root.querySelectorAll<HTMLElement>("[data-focus-today]").forEach(el => el.setText(todayStats.count
+  root.querySelectorAll<HTMLElement>("[data-focus-today]").forEach(el => setTextIf(el, todayStats.count
     ? L("今天已专注 {count} 次 · {minutes} 分钟", "Today: {count} sessions · {minutes} min", { count: todayStats.count, minutes: todayStats.minutes })
     : L("今天还没有完成专注", "No sessions finished today")));
 }

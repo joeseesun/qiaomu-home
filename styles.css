@@ -272,7 +272,6 @@
   border-radius: 14px;
   background: var(--qh-popover);
   box-shadow: var(--shadow-l);
-  backdrop-filter: var(--qh-blur);
 }
 
 .qh-result-group:empty {
@@ -366,6 +365,17 @@
 
 .qh-slot {
   display: contents;
+}
+
+/* A rebuilt grid waiting for its cards to load: connected, so async reads complete, but never laid out or painted. */
+.qh-stage {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+  content-visibility: hidden;
 }
 
 .qh-card {
@@ -669,6 +679,111 @@
   .qh-corner-button.is-spinning svg,
   .qh-photo {
     animation: none;
+    transition: none;
+  }
+}
+
+/*
+ * Baked glass (see src/wallpaper/glass.ts): the photo is blurred once and painted as a fixed background aligned
+ * with .qh-photo, instead of a live backdrop-filter that re-blurs on every frame. The veil fades the glass in and
+ * out together with the photo; without .qh-glass the live blur above stays in charge.
+ */
+@property --qh-glass-fade {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+
+.qh-root.qh-glass {
+  /* What the glass shows before the photo has faded in: the backdrop color under the shade. */
+  --qh-glass-base: color-mix(in srgb, #000 calc(var(--qh-dim) * 100%), var(--qh-photo-color, #16161a));
+}
+
+.qh-root.qh-has-photo.qh-glass .qh-card,
+.qh-root.qh-has-photo.qh-glass .qh-search,
+.qh-root.qh-has-photo.qh-glass .qh-pill-button,
+.qh-root.qh-has-photo.qh-glass .qh-corner-button {
+  --qh-glass-tint: var(--qh-field);
+  /* Follows the photo's own fade on these few small surfaces, so late glass never fades twice. */
+  --qh-glass-veil: color-mix(in srgb, var(--qh-glass-base) calc((1 - var(--qh-glass-fade)) * 100%), transparent);
+  transition: --qh-glass-fade 0.7s ease;
+  backdrop-filter: none;
+  background:
+    linear-gradient(var(--qh-glass-tint), var(--qh-glass-tint)),
+    linear-gradient(var(--qh-glass-veil), var(--qh-glass-veil)),
+    var(--qh-glass) var(--qh-glass-x) var(--qh-glass-y) / var(--qh-glass-w) var(--qh-glass-h) no-repeat fixed;
+}
+
+.qh-root.qh-has-photo.qh-glass .qh-card {
+  --qh-glass-tint: var(--qh-surface);
+}
+
+/* Cards: a clipped pane per card, its image held still over the photo by a scroll-driven (compositor) animation. */
+.qh-page {
+  scroll-timeline: --qh-page block;
+}
+
+.qh-glass-pane {
+  display: none;
+}
+
+.qh-root.qh-has-photo.qh-glass.qh-glass-panes .qh-card {
+  position: relative;
+  background: transparent;
+}
+
+/* No z-index on the card: the pane sinks below its border and content, but stays above the photo. */
+.qh-root.qh-has-photo.qh-glass.qh-glass-panes .qh-glass-pane {
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  display: block;
+  overflow: hidden;
+  border-radius: inherit;
+  background: var(--qh-glass-base);
+  pointer-events: none;
+}
+
+.qh-root.qh-has-photo.qh-glass.qh-glass-panes .qh-glass-pane::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--qh-surface);
+}
+
+/* Fading the image over the base color is the same mix as the veil, and runs on the compositor. */
+.qh-glass-image {
+  position: absolute;
+  left: 0;
+  height: var(--qh-glass-h);
+  background: var(--qh-glass) 0 0 / var(--qh-glass-w) var(--qh-glass-h) no-repeat;
+  opacity: 0;
+  transition: opacity 0.7s ease;
+  will-change: transform, opacity;
+  animation: qh-glass-scroll linear both;
+  animation-timeline: --qh-page;
+}
+
+.qh-root.qh-photo-shown .qh-glass-image {
+  opacity: 1;
+}
+
+@keyframes qh-glass-scroll {
+  from { transform: translateY(0); }
+  to { transform: translateY(var(--qh-scroll-range, 0px)); }
+}
+
+.qh-root.qh-has-photo.qh-glass.qh-photo-shown :is(.qh-card, .qh-search, .qh-pill-button, .qh-corner-button) {
+  --qh-glass-fade: 1;
+}
+
+.qh-root.qh-has-photo.qh-glass .qh-pill-button:hover {
+  --qh-glass-tint: var(--qh-hover);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qh-root.qh-has-photo.qh-glass :is(.qh-card, .qh-search, .qh-pill-button, .qh-corner-button),
+  .qh-glass-image {
     transition: none;
   }
 }

@@ -39,6 +39,7 @@ import { HOME_CHANGED_EVENT, findHomeProviders, type HomeAction, type HomeItem, 
 import { noteNameFromQuery, rankNotes, type NoteCandidate } from "./search";
 import { loadActions, searchProvider } from "./sources";
 import { captureNote, dailyMatcher, ensureParent, ensureTodayNote, todayPath } from "./today";
+import { GlassLayer } from "./wallpaper/glass";
 
 import { HOME_VIEW_TYPE, bindOpen, openPathFromHome } from "./open";
 export { HOME_VIEW_TYPE };
@@ -79,6 +80,33 @@ export function collectActions(app: App, settings: HomeSettings): CreateAction[]
   return all.sort((a, b) => (order.get(a.key) ?? Infinity) - (order.get(b.key) ?? Infinity));
 }
 
+/** Intl formatters are costly to build; the clock asks for the same two every second. */
+const formatters = new Map<string, Intl.DateTimeFormat>();
+function cachedFormat(key: string, locale: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  let format = formatters.get(`${key}|${locale}`);
+  if (!format) formatters.set(`${key}|${locale}`, format = new Intl.DateTimeFormat(locale, options));
+  return format;
+}
+const clockFormat = (locale: string) => cachedFormat("clock", locale, { hour: "2-digit", minute: "2-digit", hour12: false });
+const dateFormat = (locale: string) => cachedFormat("date", locale, { month: "long", day: "numeric", weekday: "long" });
+
+/** Cards still filling from async reads mutate their DOM; resolves after a frame without changes (at most ~120 ms). */
+function settled(el: HTMLElement): Promise<void> {
+  const win = el.ownerDocument.defaultView ?? window;
+  return new Promise((resolve) => {
+    let changed = false;
+    const observer = new MutationObserver(() => { changed = true; });
+    observer.observe(el, { childList: true, subtree: true, characterData: true });
+    const deadline = win.performance.now() + 120;
+    const check = () => {
+      if (changed && win.performance.now() < deadline) { changed = false; win.requestAnimationFrame(check); return; }
+      observer.disconnect();
+      resolve();
+    };
+    win.requestAnimationFrame(check);
+  });
+}
+
 /** Screen-reader name for an icon-only control, without creating a hover tooltip. */
 function hiddenLabel(el: HTMLElement, text: string): void {
   el.createSpan({ cls: "qh-sr-only", text });
@@ -87,6 +115,7 @@ function hiddenLabel(el: HTMLElement, text: string): void {
 export class HomeView extends ItemView {
   private pageEl!: HTMLElement;
   private photoEl!: HTMLElement;
+  private glass: GlassLayer | null = null;
   private creditEl!: HTMLElement;
   private wallButton!: HTMLElement;
   private createEl!: HTMLElement;
@@ -98,6 +127,8 @@ export class HomeView extends ItemView {
   private resultsEl!: HTMLElement;
   private gridEl!: HTMLElement;
   private disposeMasonry?: () => void;
+  /** A rebuilt grid waits here, connected but not rendered, until its cards have read their notes. */
+  private stageEl: HTMLElement | null = null;
   private tabsEl!: HTMLElement;
   private activePageId = "";
   private tabsSignature = "";
@@ -157,6 +188,14 @@ export class HomeView extends ItemView {
     this.dragFeedback = new DragFeedback(root);
     const backdrop = root.createDiv({ cls: "qh-backdrop" });
     this.photoEl = backdrop.createDiv({ cls: "qh-photo" });
+    // Phones blur on the GPU and do not support fixed backgrounds; they keep the live backdrop-filter.
+    if (!Platform.isMobile) {
+      const glass = this.glass = new GlassLayer(root);
+      this.register(() => { glass.destroy(); if (this.glass === glass) this.glass = null; });
+      const reposition = () => glass.reposition(true);
+      this.registerEvent(this.app.workspace.on("resize", reposition));
+      this.registerEvent(this.app.workspace.on("layout-change", reposition));
+    }
     backdrop.createDiv({ cls: "qh-shade" });
 
     this.pageEl = root.createDiv({ cls: "qh-page" });
@@ -167,7 +206,7 @@ export class HomeView extends ItemView {
     this.buildCorner(root.createDiv({ cls: "qh-corner" }));
 
     this.registerEvent((this.app.workspace as Events).on(HOME_CHANGED_EVENT, () => this.requestRefresh()));
-    this.registerEvent(this.app.workspace.on("active-leaf-change", (leaf) => { if (leaf === this.leaf) { this.stale = true; this.catchUp(); } }));
+    this.registerEvent(this.app.workspace.on("active-leaf-change", (leaf) => { if (leaf === this.leaf) { this.tick(); this.stale = true; this.catchUp(); } }));
     this.registerEvent(this.app.workspace.on("layout-change", () => this.catchUp()));
     this.registerDomEvent(root, "compositionstart", () => { this.composing = true; });
     this.registerDomEvent(root, "compositionend", () => { this.composing = false; window.setTimeout(() => this.catchUp(), 0); });
@@ -195,6 +234,9 @@ export class HomeView extends ItemView {
     this.registerEvent(this.app.vault.on("rename", () => this.requestRefresh()));
     this.registerEvent(this.app.vault.on("delete", () => this.requestRefresh()));
     this.registerEvent(this.app.vault.on("create", () => this.requestRefresh()));
+    const forgetCandidates = () => { this.candidateCache = null; };
+    for (const name of ["create", "delete", "rename", "modify"] as const) this.registerEvent(this.app.vault.on(name as "create", forgetCandidates));
+    this.registerEvent(this.app.metadataCache.on("changed", forgetCandidates));
     this.registerDomEvent(root.ownerDocument, "pointerdown", (event) => {
       const target = event.target as Node | null;
       if (target && this.inputEl.parentElement?.contains(target)) return;
@@ -208,7 +250,8 @@ export class HomeView extends ItemView {
     });
     this.connections = connectionSnapshot(this.app);
     this.registerInterval(window.setInterval(() => {
-      if (!this.contentEl.isConnected) return;
+      // Hidden pages refresh when shown anyway; the changed snapshot is still noticed then.
+      if (!this.contentEl.isConnected || !this.containerEl.isShown()) return;
       const next = connectionSnapshot(this.app);
       if (!connectionsChanged(this.connections, next)) return;
       this.connections = next;
@@ -230,6 +273,7 @@ export class HomeView extends ItemView {
     this.searchGeneration++;
     this.sectionsGeneration++;
     this.photoGeneration++;
+    this.stageEl = null;
     this.contentEl.empty();
   }
 
@@ -284,17 +328,19 @@ export class HomeView extends ItemView {
   }
 
   private tick(): void {
-    paintFocus(this.contentEl, this.plugin);
     const now = new Date();
     if (this.lastDay !== localDay(now)) { this.lastDay = localDay(now); this.requestRefresh(); }
-    const minute = now.toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit", hour12: false });
+    // A Home tab in the background paints nothing; it catches up the moment it is shown again.
+    if (!this.containerEl.isShown() && this.lastMinute) return;
+    paintFocus(this.contentEl, this.plugin);
+    const minute = clockFormat(dateLocale()).format(now);
     if (minute === this.lastMinute) return;
     this.lastMinute = minute;
     this.catchUp();
     this.contentEl.querySelectorAll(".qh-card[data-tick]").forEach(card => card.dispatchEvent(new Event("qh-minute")));
     if (!this.timeEl || !this.subEl) return;
     this.timeEl.setText(minute);
-    const date = now.toLocaleDateString(dateLocale(), { month: "long", day: "numeric", weekday: "long" });
+    const date = dateFormat(dateLocale()).format(now);
     this.subEl.setText(`${greeting(now.getHours())} · ${date}`);
   }
 
@@ -311,19 +357,24 @@ export class HomeView extends ItemView {
     this.creditEl.empty();
     this.wallButton.toggleClass("is-off", !shown);
     if (!shown) {
-      root.removeClass("qh-has-photo");
+      root.removeClass("qh-has-photo", "qh-photo-shown");
       this.photoEl.style.removeProperty("background-image");
+      void this.glass?.show(null, 0);
       return;
     }
     root.addClass("qh-has-photo");
     if (shown.color) root.style.setProperty("--qh-photo-color", shown.color);
     const img = new Image();
-    img.onload = () => {
-      if (generation !== this.photoGeneration) return;
+    const loaded = new Promise<boolean>((resolve) => { img.onload = () => resolve(true); img.onerror = () => resolve(false); });
+    img.src = shown.url;
+    // The baked glass and the photo fade in together; a slow or failed bake leaves the live blur in place.
+    const glass = this.glass?.show(shown.url, this.plugin.settings.wallpaper.dim);
+    void Promise.all([loaded, glass && Promise.race([glass, new Promise((resolve) => window.setTimeout(resolve, 400))])]).then(([ok]) => {
+      if (!ok || generation !== this.photoGeneration) return;
       this.photoEl.style.backgroundImage = `url("${shown.url.replace(/"/g, "%22")}")`;
       this.photoEl.addClass("is-loaded");
-    };
-    img.src = shown.url;
+      root.addClass("qh-photo-shown");
+    });
     if (shown.photo) {
       const link = this.creditEl.createEl("a", { cls: "qh-credit-link", text: t("wallpaper.credit", { name: shown.photo.author }), href: shown.photo.page });
       link.target = "_blank";
@@ -350,6 +401,7 @@ export class HomeView extends ItemView {
 
   private nextWallpaper(): void {
     this.photoEl.removeClass("is-loaded");
+    this.contentEl.removeClass("qh-photo-shown");
     this.wallButton.addClass("is-spinning");
     void this.plugin.wallpaper.next().finally(() => this.wallButton.removeClass("is-spinning"));
   }
@@ -471,8 +523,11 @@ export class HomeView extends ItemView {
     this.inputEl.removeAttribute("aria-activedescendant");
   }
 
+  /** Built once per change of the vault rather than on every keystroke. */
+  private candidateCache: NoteCandidate[] | null = null;
+
   private candidates(): NoteCandidate[] {
-    return this.app.vault.getFiles().map((file) => {
+    return this.candidateCache ??= this.app.vault.getFiles().map((file) => {
       const aliases = this.app.metadataCache.getFileCache(file)?.frontmatter?.aliases as unknown;
       return {
         path: file.path, basename: file.basename, extension: file.extension.toLowerCase(), mtime: file.stat.mtime,
@@ -807,7 +862,8 @@ export class HomeView extends ItemView {
 
   private masonry(grid: HTMLElement): void {
     this.disposeMasonry?.();
-    this.disposeMasonry = attachMasonry(grid);
+    const masonry = attachMasonry(grid), glass = this.glass?.attachGrid(grid, this.pageEl);
+    this.disposeMasonry = () => { masonry(); glass?.(); };
   }
 
   private renderPages(): void {
@@ -897,6 +953,8 @@ export class HomeView extends ItemView {
     next.setAttr("aria-labelledby", `${this.pageInstance}-tab-${index}`);
     next.tabIndex = 0;
     next.detach();
+    this.stageEl?.remove();
+    this.stageEl = null;
     const first = !grid.hasChildNodes();
     if (moduleOptions(this.plugin.settings, "recent", page.id).visible) this.renderRecent(next);
     if (first) { grid.replaceWith(next); this.gridEl = next; this.masonry(next); }
@@ -965,7 +1023,17 @@ export class HomeView extends ItemView {
         const configure = empty.createEl("button", { cls: "qh-pill", text: t("library.title") });
         configure.addEventListener("click", () => this.openLibrary(page.id));
       }
-      if (!first) {
+      if (first) return;
+      // Cards fill themselves from notes a moment later. Swapping now would flash "Loading…" and re-pack the
+      // grid twice, so the new grid settles out of sight and replaces the old one in a single paint.
+      const stage = this.stageEl = this.pageEl.createDiv({ cls: "qh-stage" });
+      stage.appendChild(next);
+      void settled(next).then(() => {
+        if (generation !== this.sectionsGeneration || this.stageEl !== stage) return;
+        this.stageEl = null;
+        stage.remove();
+        // Never pull the grid from under a drag or an IME composition; refresh when it ends instead.
+        if (this.dragging || this.shortcutDragging || this.composing) { this.stale = true; return; }
         const restore = this.captureFocus(grid);
         const scrollTop = this.pageEl.scrollTop;
         // The new masonry grid starts with 1px rows. Keep the old height until its
@@ -975,7 +1043,7 @@ export class HomeView extends ItemView {
         next.style.removeProperty("min-height");
         this.pageEl.scrollTop = scrollTop;
         restore(next);
-      }
+      });
     }).catch((error: unknown) => console.error("Qiaomu Home: could not load modules", error));
   }
 
