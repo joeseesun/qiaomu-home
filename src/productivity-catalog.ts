@@ -15,5 +15,6 @@ export const PRODUCTIVITY_MODULES = {
   "orphan-notes": { zh: "待连接笔记", en: "Unlinked notes", icon: "file-question", description: "找出没有内部链接连接的笔记。", descriptionEn: "Notes without incoming or outgoing internal links.", folder: true, path: false, count: true },
   "broken-links": { zh: "待补全链接", en: "Unresolved links", icon: "unlink", description: "查看尚无目标笔记的链接，打开来源整理。", descriptionEn: "Open the source of links with missing targets.", folder: true, path: false, count: true },
   "saved-search": { zh: "搜索预设", en: "Saved search", icon: "search-check", description: "一键重用常用的 Obsidian 搜索条件。", descriptionEn: "Reuse a saved Obsidian search query.", folder: false, path: false, count: false },
+  "quadrant": { zh: "任务四象限", en: "Quadrant", icon: "layout-grid", description: "艾森豪威尔矩阵，管理大目标和节点，数据保存在指定笔记中。", descriptionEn: "Eisenhower matrix for big goals and milestones; data saved in a chosen note.", folder: false, path: true, count: false },
 } as const;
 export type ProductivityId = keyof typeof PRODUCTIVITY_MODULES;

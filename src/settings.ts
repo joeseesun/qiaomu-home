@@ -5,6 +5,7 @@ import { calendarUrl, clockMinutes, validZone, type WeatherLocation, type ZoneEn
 import { WEATHER_COUNTRIES } from "./weather-location";
 import { PRODUCTIVITY_MODULES } from "./productivity-catalog";
 import { normalizeFocus, type FocusSession } from "./productivity-data";
+import { normalizeQuadrant, type QuadrantTask } from "./quadrant-data";
 import { L, isChinese, isLanguage, type LanguagePreference } from "./i18n";
 import { defaultHomeShortcuts, FAVICON, normalizeShortcutGroups, type ShortcutGroup } from "./shortcuts";
 export type WallpaperSource = "curated" | "unsplash" | "local" | "none";
@@ -148,6 +149,8 @@ export interface HomeSettings {
   focusSound: boolean;
   ambient: { kind: "white" | "pink" | "brown"; volume: number };
   countdown: { label: string; date: string };
+  /** Legacy backup; removed only after a successful note migration. */
+  quadrant: { tasks: QuadrantTask[]; migrationPath?: string };
   hiddenRecommendations: string[];
 }
 
@@ -234,6 +237,7 @@ export const DEFAULT_SETTINGS: HomeSettings = {
   dailyFocus: { day: "", items: [] },
   ambient: { kind: "brown", volume: 0.4 },
   countdown: { label: "", date: "" },
+  quadrant: { tasks: [] },
   hiddenRecommendations: [],
   openInNewTab: false,
   todoCarryDays: 7,
@@ -283,7 +287,7 @@ export function moduleOptions(settings: HomeSettings, id: string, pageId?: strin
 
 /** Built-in cards never appear on their own, even on pages that show newly discovered plugin sections. */
 const OPT_IN = new Set([...Object.keys(PRODUCTIVITY_MODULES), ...Object.keys(EXTRA_MODULES), ...Object.keys(INTEGRATIONS), ...Object.keys(DISCOVERY_MODULES),
-  "todo", "beginner-plugins", "daily-preview", "recently-modified", "review-note", "inbox-preview", "daily-focus", "countdown"]);
+  "todo", "beginner-plugins", "daily-preview", "recently-modified", "review-note", "inbox-preview", "daily-focus", "countdown", "quadrant"]);
 
 export function sectionKey(source: string, section: string): string {
   return `section:${encodeURIComponent(source)}:${encodeURIComponent(section)}`;
@@ -458,6 +462,7 @@ export function normalizeSettings(saved: unknown): HomeSettings {
     ambient: { kind: pick(ambient.kind, ["white", "pink", "brown"], defaults.ambient.kind),
       volume: typeof ambient.volume === "number" && Number.isFinite(ambient.volume) ? Math.min(1, Math.max(0, ambient.volume)) : defaults.ambient.volume },
     countdown: { label: text(deadline.label).slice(0, 80), date: /^\d{4}-\d{2}-\d{2}$/.test(text(deadline.date)) ? text(deadline.date) : "" },
+    quadrant: normalizeQuadrant(raw.quadrant),
     hiddenRecommendations: strings(raw.hiddenRecommendations),
   };
 }
